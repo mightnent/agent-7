@@ -8,6 +8,14 @@ const envSchema = z.object({
   MANUS_WEBHOOK_URL: z.string().url().optional(),
   MANUS_WEBHOOK_SECRET: z.string().min(16),
   MANUS_AGENT_PROFILE: z.enum(["manus-1.6", "manus-1.6-lite", "manus-1.6-max"]).default("manus-1.6"),
+  MANUS_CONNECTOR_CATALOG_URL: z
+    .string()
+    .url()
+    .default("https://api.manus.im/connectors.v1.ConnectorsPublicService/PublicListConnectors"),
+  MANUS_CONNECTOR_CATALOG_LIMIT: z.coerce.number().int().positive().max(1000).default(200),
+  MANUS_CONNECTOR_CATALOG_TTL_MS: z.coerce.number().int().positive().default(5 * 60 * 1000),
+  MANUS_ENABLED_CONNECTOR_UIDS: z.string().optional(),
+  MANUS_MANUAL_CONNECTOR_ALIASES: z.string().optional(),
   ROUTER_LLM_PROVIDER: z.enum(["none", "openai_compatible"]).default("none"),
   ROUTER_LLM_API_KEY: z.string().optional(),
   ROUTER_LLM_MODEL: z.string().default("gpt-4.1-mini"),

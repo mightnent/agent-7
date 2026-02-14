@@ -138,6 +138,36 @@ describe("createTaskFromInboundMessage", () => {
     );
   });
 
+  it("passes resolved connectors to Manus createTask", async () => {
+    const deps = createMocks();
+    vi.mocked(deps.manusClient.createTask).mockResolvedValue({
+      task_id: "task-connector",
+      task_title: "Connector task",
+      task_url: "https://manus.im/app/task-connector",
+    });
+    vi.mocked(deps.store.createOutboundMessage).mockResolvedValue("outbound-connector");
+
+    await createTaskFromInboundMessage(
+      {
+        sessionId: "session-connector",
+        inboundMessageId: "inbound-connector",
+        chatId: "15551234567@s.whatsapp.net",
+        text: "Check backlog",
+        attachments: [],
+        senderId: "assistant",
+        connectors: ["clickup-uid"],
+      },
+      deps,
+    );
+
+    expect(vi.mocked(deps.manusClient.createTask)).toHaveBeenCalledWith(
+      "Check backlog",
+      expect.objectContaining({
+        connectors: ["clickup-uid"],
+      }),
+    );
+  });
+
   it("falls back to prompt-derived title when Manus returns blank title", async () => {
     const deps = createMocks();
     vi.mocked(deps.manusClient.createTask).mockResolvedValue({

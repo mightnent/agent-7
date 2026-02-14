@@ -26,6 +26,7 @@ import {
 import pino from "pino";
 
 import { getEnv } from "@/lib/env";
+import { createConnectorResolverFromEnv } from "@/lib/connectors/runtime";
 import { createManusClientFromEnv } from "@/lib/manus/client";
 import { dispatchInboundMessage } from "@/lib/orchestration/inbound-dispatch";
 import { DrizzleEventProcessorStore } from "@/lib/orchestration/event-processor.store";
@@ -154,6 +155,7 @@ export async function bootBaileys(): Promise<void> {
   const eventProcessorStore = new DrizzleEventProcessorStore();
   const taskRouterStore = new DrizzleTaskRouterStore();
   const router = createTaskRouterFromEnv({ store: taskRouterStore });
+  const connectorResolver = createConnectorResolverFromEnv();
 
   // --- Connect ---
   const connect = (): void => {
@@ -280,6 +282,7 @@ export async function bootBaileys(): Promise<void> {
             {
               activeTaskStore: taskRouterStore,
               router,
+              connectorResolver,
               manusClient,
               taskStateStore: eventProcessorStore,
               whatsappAdapter: adapter,

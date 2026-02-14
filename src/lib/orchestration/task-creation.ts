@@ -18,6 +18,12 @@ export interface CreateTaskFromInboundInput {
   text: string | null;
   attachments: WhatsAppMediaAttachment[];
   senderId: string;
+  connectors?: string[];
+  connectorResolution?: {
+    reason: string;
+    source: string;
+    confidence: number;
+  };
   agentProfile?: "manus-1.6" | "manus-1.6-lite" | "manus-1.6-max";
   routeReason?: string;
   now?: () => Date;
@@ -79,6 +85,7 @@ export const createTaskFromInboundMessage = async (
     interactiveMode: true,
     hideInTaskList: true,
     agentProfile: input.agentProfile,
+    connectors: input.connectors,
   });
 
   const taskTitle = task.task_title?.trim() || titleFromPrompt(prompt);
@@ -113,6 +120,8 @@ export const createTaskFromInboundMessage = async (
       taskId: task.task_id,
       taskTitle,
       taskUrl: task.task_url,
+      connectors: input.connectors ?? [],
+      connectorResolution: input.connectorResolution,
     },
     manusTaskId: task.task_id,
     createdAt,

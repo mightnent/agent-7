@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { WhatsAppAdapter } from "@/lib/channel/whatsapp-adapter";
 import type { WhatsAppMediaAttachment } from "@/lib/channel/whatsapp-types";
+import type { ConnectorResolver } from "@/lib/connectors/resolver";
 import { ManusApiError } from "@/lib/manus/client";
 import type { ManusClient } from "@/lib/manus/client";
 import { TaskRouter } from "@/lib/routing/task-router";
@@ -22,6 +23,9 @@ const createBaseDeps = () => {
   };
 
   const router = new TaskRouter(classifier);
+  const connectorResolver: ConnectorResolver = {
+    resolve: vi.fn(),
+  };
 
   const manusClient = {
     continueTask: vi.fn(),
@@ -48,6 +52,7 @@ const createBaseDeps = () => {
     activeTaskStore,
     classifier,
     router,
+    connectorResolver,
     manusClient,
     taskStateStore,
     whatsappAdapter,
@@ -76,6 +81,12 @@ describe("dispatchInboundMessage", () => {
         lastMessage: "Pick an option",
       },
     ]);
+    vi.mocked(deps.connectorResolver.resolve).mockResolvedValue({
+      connectorUids: ["clickup-uid"],
+      confidence: 0.9,
+      reason: "matched_catalog_name",
+      source: "catalog_name",
+    });
 
     const result = await dispatchInboundMessage(
       {
@@ -95,6 +106,7 @@ describe("dispatchInboundMessage", () => {
       expect.objectContaining({
         taskMode: "adaptive",
         interactiveMode: true,
+        connectors: ["clickup-uid"],
       }),
     );
 
@@ -109,6 +121,12 @@ describe("dispatchInboundMessage", () => {
   it("creates a new task when router returns new", async () => {
     const deps = createBaseDeps();
     vi.mocked(deps.activeTaskStore.listActiveTasks).mockResolvedValue([]);
+    vi.mocked(deps.connectorResolver.resolve).mockResolvedValue({
+      connectorUids: ["clickup-uid"],
+      confidence: 0.9,
+      reason: "matched_catalog_name",
+      source: "catalog_name",
+    });
     vi.mocked(deps.manusClient.createTask).mockResolvedValue({
       task_id: "task-new",
       task_title: "Analyze image",
@@ -129,6 +147,12 @@ describe("dispatchInboundMessage", () => {
     );
 
     expect(vi.mocked(deps.manusClient.createTask)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(deps.manusClient.createTask)).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        connectors: ["clickup-uid"],
+      }),
+    );
     expect(result.action).toBe("new");
     expect(result.taskId).toBe("task-new");
   });
@@ -145,6 +169,12 @@ describe("dispatchInboundMessage", () => {
         lastMessage: "Need input",
       },
     ]);
+    vi.mocked(deps.connectorResolver.resolve).mockResolvedValue({
+      connectorUids: ["clickup-uid"],
+      confidence: 0.9,
+      reason: "matched_catalog_name",
+      source: "catalog_name",
+    });
 
     vi.mocked(deps.manusClient.continueTask).mockRejectedValue(
       new ManusApiError("Manus request failed with status 404", 404, '{"code":5,"message":"task not found"}'),

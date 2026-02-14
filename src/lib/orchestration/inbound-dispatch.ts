@@ -1,5 +1,6 @@
 import type { WhatsAppAdapter } from "@/lib/channel/whatsapp-adapter";
 import type { WhatsAppMediaAttachment } from "@/lib/channel/whatsapp-types";
+import type { ConnectorResolver } from "@/lib/connectors/resolver";
 import { ManusApiError } from "@/lib/manus/client";
 import type { ManusClient } from "@/lib/manus/client";
 import { toManusBase64Attachments } from "@/lib/manus/client";
@@ -73,6 +74,7 @@ export type InboundDispatchResult =
 export interface InboundDispatchDeps {
   activeTaskStore: ActiveTaskQueryStore;
   router: TaskRouter;
+  connectorResolver: ConnectorResolver;
   manusClient: ManusClient;
   taskStateStore: TaskStateStore;
   whatsappAdapter: WhatsAppAdapter;
@@ -86,6 +88,11 @@ export const dispatchInboundMessage = async (
   const now = input.now ?? (() => new Date());
   const activeTasks = await deps.activeTaskStore.listActiveTasks(input.sessionId);
   const routingMessage = resolveRouterMessage(input.text, input.attachments);
+  const connectorResolution = await deps.connectorResolver.resolve({
+    sessionId: input.sessionId,
+    message: routingMessage,
+  });
+  const connectors = connectorResolution.connectorUids;
 
   const decision = await deps.router.route({
     messageId: input.inboundMessageId,
@@ -102,6 +109,7 @@ export const dispatchInboundMessage = async (
         hideInTaskList: true,
         agentProfile: input.agentProfile,
         attachments: toManusBase64Attachments(input.attachments),
+        connectors,
       });
     } catch (error) {
       const isMissingTask =
@@ -122,6 +130,12 @@ export const dispatchInboundMessage = async (
           attachments: input.attachments,
           senderId: input.senderId,
           routeReason: CONTINUE_TASK_NOT_FOUND_FALLBACK_REASON,
+          connectors,
+          connectorResolution: {
+            reason: connectorResolution.reason,
+            source: connectorResolution.source,
+            confidence: connectorResolution.confidence,
+          },
           agentProfile: input.agentProfile,
           now,
         },
@@ -159,6 +173,12 @@ export const dispatchInboundMessage = async (
       attachments: input.attachments,
       senderId: input.senderId,
       routeReason: decision.reason,
+      connectors,
+      connectorResolution: {
+        reason: connectorResolution.reason,
+        source: connectorResolution.source,
+        confidence: connectorResolution.confidence,
+      },
       agentProfile: input.agentProfile,
       now,
     },

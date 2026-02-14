@@ -19,6 +19,11 @@ cp .env.example .env
 
 Populate `.env` with real credentials before running the app.
 
+Optional connector auto-selection settings:
+
+- `MANUS_ENABLED_CONNECTOR_UIDS`: CSV allowlist of connector UUIDs to consider for auto-selection.
+- `MANUS_MANUAL_CONNECTOR_ALIASES`: JSON alias map (`alias -> connector UUID`) for custom naming or custom MCP connectors.
+
 ## First Run (Pair + Configure WhatsApp)
 
 ```bash

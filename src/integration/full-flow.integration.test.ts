@@ -21,6 +21,7 @@ import {
 } from "@/db/schema";
 import type { WhatsAppAdapter } from "@/lib/channel/whatsapp-adapter";
 import { DrizzleWhatsAppInboundStore } from "@/lib/channel/whatsapp-inbound.store";
+import type { ConnectorResolver } from "@/lib/connectors/resolver";
 import { ManusClient } from "@/lib/manus/client";
 import { createEventProcessor } from "@/lib/orchestration/event-processor";
 import { DrizzleEventProcessorStore } from "@/lib/orchestration/event-processor.store";
@@ -36,6 +37,16 @@ import { DrizzleTaskRouterStore } from "@/lib/routing/task-router.store";
 
 const TEST_JID = `${randomUUID().slice(0, 8)}@s.whatsapp.net`;
 const now = () => new Date();
+const connectorResolver: ConnectorResolver = {
+  async resolve() {
+    return {
+      connectorUids: [],
+      confidence: 0,
+      reason: "test_no_connector",
+      source: "none",
+    };
+  },
+};
 
 const createMockAdapter = (): WhatsAppAdapter & {
   sentTexts: Array<{ jid: string; text: string }>;
@@ -187,6 +198,7 @@ describe("Integration: Full finish flow", () => {
       {
         activeTaskStore: taskRouterStore,
         router,
+        connectorResolver,
         manusClient,
         taskStateStore: eventProcessorStore,
         whatsappAdapter: adapter,
@@ -317,6 +329,7 @@ describe("Integration: Ask/continue flow", () => {
       {
         activeTaskStore: taskRouterStore,
         router,
+        connectorResolver,
         manusClient,
         taskStateStore: eventProcessorStore,
         whatsappAdapter: adapter,
@@ -383,6 +396,7 @@ describe("Integration: Ask/continue flow", () => {
       {
         activeTaskStore: taskRouterStore,
         router,
+        connectorResolver,
         manusClient,
         taskStateStore: eventProcessorStore,
         whatsappAdapter: adapter,
