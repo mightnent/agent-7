@@ -50,7 +50,6 @@ export class OpenAiCompatibleLlmCompletionClient implements LlmCompletionClient 
         },
         body: JSON.stringify({
           model: this.config.model,
-          temperature: 0,
           response_format: { type: "json_object" },
           messages: [
             { role: "system", content: input.system },

@@ -35,6 +35,8 @@ export interface WhatsAppBaileysAdapterOptions {
   isConnected: () => boolean;
 }
 
+const MAX_TEXT_MESSAGE_CHARS = 3_000;
+
 export type BaileysMediaPayload =
   | {
       image: Buffer;
@@ -91,6 +93,40 @@ export const toBaileysMediaPayload = (media: WhatsAppMediaSendInput): BaileysMed
   };
 };
 
+const splitTextMessage = (text: string): string[] => {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  const chunks: string[] = [];
+  let cursor = 0;
+
+  while (cursor < trimmed.length) {
+    const remaining = trimmed.length - cursor;
+    if (remaining <= MAX_TEXT_MESSAGE_CHARS) {
+      chunks.push(trimmed.slice(cursor));
+      break;
+    }
+
+    const window = trimmed.slice(cursor, cursor + MAX_TEXT_MESSAGE_CHARS);
+    const newlineBreak = window.lastIndexOf("\n");
+    const spaceBreak = window.lastIndexOf(" ");
+    const splitAt = Math.max(newlineBreak, spaceBreak);
+
+    if (splitAt <= 0) {
+      chunks.push(window);
+      cursor += MAX_TEXT_MESSAGE_CHARS;
+      continue;
+    }
+
+    chunks.push(window.slice(0, splitAt).trimEnd());
+    cursor += splitAt + 1;
+  }
+
+  return chunks.filter((chunk) => chunk.length > 0);
+};
+
 export class BaileysWhatsAppAdapter implements WhatsAppAdapter {
   private readonly outgoingQueue: OutgoingMessage[] = [];
   private flushingQueue = false;
@@ -98,7 +134,14 @@ export class BaileysWhatsAppAdapter implements WhatsAppAdapter {
   constructor(private readonly options: WhatsAppBaileysAdapterOptions) {}
 
   async sendTextMessage(jid: string, text: string): Promise<void> {
-    await this.sendOrQueue({ type: "text", jid, text });
+    const chunks = splitTextMessage(text);
+    if (chunks.length === 0) {
+      return;
+    }
+
+    for (const chunk of chunks) {
+      await this.sendOrQueue({ type: "text", jid, text: chunk });
+    }
   }
 
   async sendMediaMessage(jid: string, media: WhatsAppMediaSendInput): Promise<void> {

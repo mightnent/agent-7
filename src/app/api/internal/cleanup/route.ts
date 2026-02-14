@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createNoopWhatsAppAdapter, getRuntimeWhatsAppAdapter } from "@/lib/channel/runtime-adapter";
 import { getEnv } from "@/lib/env";
+import { createManusClientFromEnv } from "@/lib/manus/client";
 import { runCleanup } from "@/lib/ops/cleanup";
 
 export const runtime = "nodejs";
@@ -26,6 +27,7 @@ export async function POST(request: Request): Promise<Response> {
   const summary = await runCleanup({
     store: new DrizzleCleanupStore(),
     whatsappAdapter: adapter,
+    manusClient: createManusClientFromEnv(),
   });
 
   return NextResponse.json({

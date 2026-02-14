@@ -1,4 +1,4 @@
-import { and, eq, inArray, lt } from "drizzle-orm";
+import { and, eq, gt, inArray, lt } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { channelSessions, manusAttachments, manusTasks, manusWebhookEvents, messages } from "@/db/schema";
@@ -9,11 +9,20 @@ export interface StaleTaskRecord {
   taskId: string;
   sessionId: string;
   chatId: string;
+  updatedAt: Date;
 }
 
 export interface CleanupStore {
   deleteExpiredRows(table: ExpirableTable, now: Date, batchSize: number): Promise<number>;
   listStaleTasks(cutoff: Date): Promise<StaleTaskRecord[]>;
+  hasRecentWebhook(taskId: string, since: Date): Promise<boolean>;
+  markTaskChecked(taskId: string, now: Date): Promise<boolean>;
+  updateTaskFromProvider(input: {
+    taskId: string;
+    status: "completed" | "failed";
+    now: Date;
+    message: string | null;
+  }): Promise<boolean>;
   markTaskFailed(taskId: string, now: Date, reason: string): Promise<boolean>;
   createStaleTaskOutboundMessage(input: {
     sessionId: string;
@@ -100,12 +109,62 @@ export class DrizzleCleanupStore implements CleanupStore {
         taskId: manusTasks.taskId,
         sessionId: manusTasks.sessionId,
         chatId: channelSessions.channelChatId,
+        updatedAt: manusTasks.updatedAt,
       })
       .from(manusTasks)
       .innerJoin(channelSessions, eq(channelSessions.id, manusTasks.sessionId))
       .where(and(inArray(manusTasks.status, ["pending", "running"]), lt(manusTasks.updatedAt, cutoff)));
 
     return rows;
+  }
+
+  async hasRecentWebhook(taskId: string, since: Date): Promise<boolean> {
+    const rows = await this.database
+      .select({ id: manusWebhookEvents.id })
+      .from(manusWebhookEvents)
+      .where(
+        and(
+          eq(manusWebhookEvents.taskId, taskId),
+          inArray(manusWebhookEvents.processStatus, ["pending", "processed"]),
+          gt(manusWebhookEvents.receivedAt, since),
+        ),
+      )
+      .limit(1);
+
+    return Boolean(rows[0]);
+  }
+
+  async markTaskChecked(taskId: string, now: Date): Promise<boolean> {
+    const rows = await this.database
+      .update(manusTasks)
+      .set({
+        updatedAt: now,
+      })
+      .where(and(eq(manusTasks.taskId, taskId), inArray(manusTasks.status, ["pending", "running"])))
+      .returning({ id: manusTasks.id });
+
+    return Boolean(rows[0]);
+  }
+
+  async updateTaskFromProvider(input: {
+    taskId: string;
+    status: "completed" | "failed";
+    now: Date;
+    message: string | null;
+  }): Promise<boolean> {
+    const rows = await this.database
+      .update(manusTasks)
+      .set({
+        status: input.status,
+        stopReason: input.status === "completed" ? "finish" : null,
+        lastMessage: input.message,
+        updatedAt: input.now,
+        stoppedAt: input.now,
+      })
+      .where(and(eq(manusTasks.taskId, input.taskId), inArray(manusTasks.status, ["pending", "running"])))
+      .returning({ id: manusTasks.id });
+
+    return Boolean(rows[0]);
   }
 
   async markTaskFailed(taskId: string, now: Date, reason: string): Promise<boolean> {

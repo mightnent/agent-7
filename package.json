@@ -14,6 +14,7 @@
     "test:coverage": "vitest run --coverage",
     "whatsapp:auth": "npx tsx src/scripts/whatsapp-auth.ts",
     "whatsapp:setup": "npx tsx src/scripts/whatsapp-setup.ts",
+    "manus:webhook:register": "npx tsx src/scripts/manus-webhook-register.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"

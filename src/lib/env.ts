@@ -5,6 +5,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   MANUS_API_KEY: z.string().min(1),
   MANUS_BASE_URL: z.string().url().default("https://api.manus.ai"),
+  MANUS_WEBHOOK_URL: z.string().url().optional(),
   MANUS_WEBHOOK_SECRET: z.string().min(16),
   MANUS_AGENT_PROFILE: z.enum(["manus-1.6", "manus-1.6-lite", "manus-1.6-max"]).default("manus-1.6"),
   ROUTER_LLM_PROVIDER: z.enum(["none", "openai_compatible"]).default("none"),

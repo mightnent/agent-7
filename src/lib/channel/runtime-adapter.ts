@@ -1,17 +1,23 @@
 import type { WhatsAppAdapter } from "./whatsapp-adapter";
 
-let runtimeWhatsAppAdapter: WhatsAppAdapter | null = null;
+const RUNTIME_ADAPTER_KEY = "__manus_runtime_whatsapp_adapter__";
+
+type GlobalWithRuntimeAdapter = typeof globalThis & {
+  [RUNTIME_ADAPTER_KEY]?: WhatsAppAdapter | null;
+};
+
+const runtimeStore = (): GlobalWithRuntimeAdapter => globalThis as GlobalWithRuntimeAdapter;
 
 export const setRuntimeWhatsAppAdapter = (adapter: WhatsAppAdapter): void => {
-  runtimeWhatsAppAdapter = adapter;
+  runtimeStore()[RUNTIME_ADAPTER_KEY] = adapter;
 };
 
 export const clearRuntimeWhatsAppAdapter = (): void => {
-  runtimeWhatsAppAdapter = null;
+  runtimeStore()[RUNTIME_ADAPTER_KEY] = null;
 };
 
 export const getRuntimeWhatsAppAdapter = (): WhatsAppAdapter | null => {
-  return runtimeWhatsAppAdapter;
+  return runtimeStore()[RUNTIME_ADAPTER_KEY] ?? null;
 };
 
 export const createNoopWhatsAppAdapter = (): WhatsAppAdapter => ({

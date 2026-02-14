@@ -141,6 +141,29 @@ describe("TaskRouter", () => {
       reason: "classifier_rejected_unknown_task:missing-task",
     });
   });
+
+  it("falls back to new when classifier throws", async () => {
+    const { classifier, store } = createDeps();
+    vi.mocked(classifier.classify).mockRejectedValue(new Error("router provider failed"));
+
+    const router = new TaskRouter(classifier, store);
+    const result = await router.route({
+      messageId: "message-4",
+      message: "continue previous task",
+      activeTasks,
+    });
+
+    expect(result).toEqual({
+      action: "new",
+      reason: taskRouterConstants.CLASSIFIER_ERROR_FALLBACK_REASON,
+    });
+    expect(vi.mocked(store.persistRouteDecision)).toHaveBeenCalledWith({
+      messageId: "message-4",
+      action: "new",
+      reason: taskRouterConstants.CLASSIFIER_ERROR_FALLBACK_REASON,
+      taskId: null,
+    });
+  });
 });
 
 describe("JsonLlmTaskRouterClassifier", () => {

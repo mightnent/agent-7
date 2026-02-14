@@ -37,7 +37,7 @@ import { canonicalizeJid, loadBotConfig, shouldProcessMessage } from "./bot-conf
 import type { BotConfig } from "./bot-config";
 import { downloadBaileysMediaBuffer } from "./whatsapp-baileys";
 import { SlidingWindowRateLimiter } from "./rate-limiter";
-import { setRuntimeWhatsAppAdapter } from "./runtime-adapter";
+import { getRuntimeWhatsAppAdapter, setRuntimeWhatsAppAdapter } from "./runtime-adapter";
 import { BaileysWhatsAppAdapter } from "./whatsapp-adapter";
 import { createWhatsAppInboundHandler } from "./whatsapp-inbound";
 import { DrizzleWhatsAppInboundStore } from "./whatsapp-inbound.store";
@@ -89,11 +89,16 @@ function resolveJid(jid: string): string {
 
 export async function bootBaileys(): Promise<void> {
   const state = getGlobal();
-  if (state.booted) {
+  const runtimeAdapter = getRuntimeWhatsAppAdapter();
+  if (state.booted && runtimeAdapter) {
     logger.info("Baileys already booted (dev hot reload), skipping");
     return;
   }
-  state.booted = true;
+
+  if (state.booted && !runtimeAdapter) {
+    logger.warn("Baileys marked booted but runtime adapter missing; retrying bootstrap");
+    state.booted = false;
+  }
 
   const env = getEnv();
 
@@ -107,6 +112,8 @@ export async function bootBaileys(): Promise<void> {
     );
     return;
   }
+
+  state.booted = true;
 
   logger.info(
     {

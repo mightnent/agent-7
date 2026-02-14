@@ -1,5 +1,6 @@
 import type { WhatsAppAdapter } from "@/lib/channel/whatsapp-adapter";
 import type { WhatsAppMediaAttachment } from "@/lib/channel/whatsapp-types";
+import { ManusApiError } from "@/lib/manus/client";
 import type { ManusClient } from "@/lib/manus/client";
 import { toManusBase64Attachments } from "@/lib/manus/client";
 import type { ActiveTaskQueryStore } from "@/lib/routing/task-router.store";
@@ -12,6 +13,7 @@ const DEFAULT_ROUTER_MESSAGE_FOR_MEDIA = "[User sent media attachment]";
 const DEFAULT_ROUTER_MESSAGE_FOR_EMPTY = "[User sent an empty message]";
 const DEFAULT_PROMPT_FOR_MEDIA = "Please help with the attached media from the user.";
 const DEFAULT_PROMPT_FOR_EMPTY = "User sent an empty message. Ask for clarification and help further.";
+const CONTINUE_TASK_NOT_FOUND_FALLBACK_REASON = "continue_task_not_found_fallback_new";
 
 const resolvePrompt = (text: string | null, attachments: WhatsAppMediaAttachment[]): string => {
   const trimmed = text?.trim();
@@ -93,13 +95,51 @@ export const dispatchInboundMessage = async (
 
   if (decision.action === "continue") {
     const prompt = resolvePrompt(input.text, input.attachments);
-    await deps.manusClient.continueTask(decision.taskId, prompt, {
-      taskMode: "adaptive",
-      interactiveMode: true,
-      hideInTaskList: true,
-      agentProfile: input.agentProfile,
-      attachments: toManusBase64Attachments(input.attachments),
-    });
+    try {
+      await deps.manusClient.continueTask(decision.taskId, prompt, {
+        taskMode: "adaptive",
+        interactiveMode: true,
+        hideInTaskList: true,
+        agentProfile: input.agentProfile,
+        attachments: toManusBase64Attachments(input.attachments),
+      });
+    } catch (error) {
+      const isMissingTask =
+        error instanceof ManusApiError &&
+        error.status === 404 &&
+        (error.body?.toLowerCase().includes("task not found") ?? false);
+
+      if (!isMissingTask) {
+        throw error;
+      }
+
+      const created = await createTaskFromInboundMessage(
+        {
+          sessionId: input.sessionId,
+          inboundMessageId: input.inboundMessageId,
+          chatId: input.chatId,
+          text: input.text,
+          attachments: input.attachments,
+          senderId: input.senderId,
+          routeReason: CONTINUE_TASK_NOT_FOUND_FALLBACK_REASON,
+          agentProfile: input.agentProfile,
+          now,
+        },
+        {
+          manusClient: deps.manusClient,
+          whatsappAdapter: deps.whatsappAdapter,
+          store: deps.taskCreationStore,
+        },
+      );
+
+      return {
+        action: "new",
+        taskId: created.taskId,
+        reason: CONTINUE_TASK_NOT_FOUND_FALLBACK_REASON,
+        ackMessageId: created.ackMessageId,
+        ackText: created.ackText,
+      };
+    }
 
     await deps.taskStateStore.markTaskRunning(decision.taskId, now());
 
@@ -136,4 +176,8 @@ export const dispatchInboundMessage = async (
     ackMessageId: created.ackMessageId,
     ackText: created.ackText,
   };
+};
+
+export const inboundDispatchConstants = {
+  CONTINUE_TASK_NOT_FOUND_FALLBACK_REASON,
 };

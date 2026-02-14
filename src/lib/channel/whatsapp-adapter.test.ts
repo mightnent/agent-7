@@ -133,4 +133,25 @@ describe("BaileysWhatsAppAdapter", () => {
     expect(sendPresenceUpdate).toHaveBeenCalledWith("composing", "123@s.whatsapp.net");
     expect(sendPresenceUpdate).toHaveBeenCalledWith("paused", "123@s.whatsapp.net");
   });
+
+  it("splits oversized text into multiple WhatsApp messages", async () => {
+    const sendMessage = vi.fn().mockResolvedValue(undefined);
+
+    const adapter = new BaileysWhatsAppAdapter({
+      getSocket: () => ({
+        sendMessage,
+        sendPresenceUpdate: vi.fn().mockResolvedValue(undefined),
+      }),
+      isConnected: () => true,
+    });
+
+    const longText = `${"a".repeat(2500)} ${"b".repeat(2500)}`;
+    await adapter.sendTextMessage("123@s.whatsapp.net", longText);
+
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    const firstPayload = vi.mocked(sendMessage).mock.calls[0]?.[1] as { text: string };
+    const secondPayload = vi.mocked(sendMessage).mock.calls[1]?.[1] as { text: string };
+    expect(firstPayload.text.length).toBeLessThanOrEqual(3000);
+    expect(secondPayload.text.length).toBeLessThanOrEqual(3000);
+  });
 });

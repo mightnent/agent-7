@@ -2,9 +2,9 @@
 
 ## 0) Execution State (Jira-Style)
 
-Last updated: 2026-02-13
-Current release gate: **F8 Chat Targeting — End-to-End Testing**
-Status: **F1-F7 complete; F8 (decoupled setup + chat targeting) implemented, pending e2e verification**
+Last updated: 2026-02-14
+Current release gate: **F9 Runtime Stabilization + Webhook Delivery**
+Status: **F1-F8 complete; F9 stabilization fixes completed (routing fallback, webhook registration flow, runtime adapter reliability, stale-task handling)**
 
 ### Release Log
 
@@ -18,6 +18,7 @@ Status: **F1-F7 complete; F8 (decoupled setup + chat targeting) implemented, pen
 | F6 | Ops hardening + read APIs | ✅ Done | User QA passed |
 | F7 | Baileys bootstrap + integration tests | ✅ Done | Instrumentation wiring + 5 integration tests against Neon |
 | F8 | Decouple WhatsApp setup + chat targeting | 🔧 In Progress | Separate auth/setup CLIs, bot-config.json, message filtering with name/mention triggers. See `f8-whatsapp-setup-chat-targeting.md` |
+| F9 | Runtime stabilization + webhook delivery reliability | ✅ Done | Routing fallback on classifier/continue failures, webhook registration script + callback path hardening, global runtime adapter + bootstrap recovery, outbound chunking, provider-verified stale cleanup. See `f9-runtime-stabilization-webhook-delivery.md` |
 
 ### Work Items
 

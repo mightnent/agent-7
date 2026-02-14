@@ -2,11 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { WhatsAppAdapter } from "@/lib/channel/whatsapp-adapter";
 import type { WhatsAppMediaAttachment } from "@/lib/channel/whatsapp-types";
+import { ManusApiError } from "@/lib/manus/client";
 import type { ManusClient } from "@/lib/manus/client";
 import { TaskRouter } from "@/lib/routing/task-router";
 import type { ActiveTaskQueryStore } from "@/lib/routing/task-router.store";
 
 import { dispatchInboundMessage } from "./inbound-dispatch";
+import { inboundDispatchConstants } from "./inbound-dispatch";
 import type { TaskCreationStore } from "./task-creation.store";
 import type { TaskStateStore } from "./inbound-dispatch";
 
@@ -129,5 +131,52 @@ describe("dispatchInboundMessage", () => {
     expect(vi.mocked(deps.manusClient.createTask)).toHaveBeenCalledTimes(1);
     expect(result.action).toBe("new");
     expect(result.taskId).toBe("task-new");
+  });
+
+  it("falls back to creating a new task when continueTask returns task-not-found 404", async () => {
+    const deps = createBaseDeps();
+    vi.mocked(deps.activeTaskStore.listActiveTasks).mockResolvedValue([
+      {
+        taskId: "task-missing",
+        taskTitle: "Missing Task",
+        originalPrompt: "Old prompt",
+        status: "waiting_user",
+        stopReason: "ask",
+        lastMessage: "Need input",
+      },
+    ]);
+
+    vi.mocked(deps.manusClient.continueTask).mockRejectedValue(
+      new ManusApiError("Manus request failed with status 404", 404, '{"code":5,"message":"task not found"}'),
+    );
+    vi.mocked(deps.manusClient.createTask).mockResolvedValue({
+      task_id: "task-new-after-404",
+      task_title: "Recovered Task",
+      task_url: "https://manus.im/app/task-new-after-404",
+    });
+    vi.mocked(deps.taskCreationStore.createOutboundMessage).mockResolvedValue("outbound-2");
+
+    const result = await dispatchInboundMessage(
+      {
+        sessionId: "session-3",
+        inboundMessageId: "message-3",
+        chatId: "1555@s.whatsapp.net",
+        senderId: "assistant",
+        text: "continue please",
+        attachments: [],
+      },
+      deps,
+    );
+
+    expect(vi.mocked(deps.manusClient.continueTask)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(deps.manusClient.createTask)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(deps.taskStateStore.markTaskRunning)).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      action: "new",
+      taskId: "task-new-after-404",
+      reason: inboundDispatchConstants.CONTINUE_TASK_NOT_FOUND_FALLBACK_REASON,
+      ackMessageId: "outbound-2",
+      ackText: 'Got it - working on "Recovered Task" now.',
+    });
   });
 });

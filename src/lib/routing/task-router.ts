@@ -44,6 +44,7 @@ export interface TaskRouterInput extends TaskRouterClassifierInput {
 
 const SINGLE_WAITING_ASK_REASON = "single_waiting_user_task";
 const NO_ACTIVE_TASKS_REASON = "no_active_tasks";
+const CLASSIFIER_ERROR_FALLBACK_REASON = "classifier_error_fallback_new";
 
 const validateClassifierDecision = (
   decision: TaskRouterDecision,
@@ -94,10 +95,20 @@ export class TaskRouter {
       return decision;
     }
 
-    const classified = await this.classifier.classify({
-      message: input.message,
-      activeTasks: input.activeTasks,
-    });
+    let classified: TaskRouterDecision;
+    try {
+      classified = await this.classifier.classify({
+        message: input.message,
+        activeTasks: input.activeTasks,
+      });
+    } catch {
+      const decision: TaskRouterDecision = {
+        action: "new",
+        reason: CLASSIFIER_ERROR_FALLBACK_REASON,
+      };
+      await this.persistIfNeeded(input.messageId, decision);
+      return decision;
+    }
 
     const decision = validateClassifierDecision(classified, input.activeTasks);
     await this.persistIfNeeded(input.messageId, decision);
@@ -219,4 +230,5 @@ export class JsonLlmTaskRouterClassifier implements TaskRouterClassifier {
 export const taskRouterConstants = {
   SINGLE_WAITING_ASK_REASON,
   NO_ACTIVE_TASKS_REASON,
+  CLASSIFIER_ERROR_FALLBACK_REASON,
 };
