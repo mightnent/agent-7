@@ -1,0 +1,165 @@
+import { describe, expect, it, vi } from "vitest";
+
+import type { WhatsAppAdapter } from "@/lib/channel/whatsapp-adapter";
+import type { ManusClient } from "@/lib/manus/client";
+
+import { createTaskFromInboundMessage, taskCreationConstants } from "./task-creation";
+import type { TaskCreationStore } from "./task-creation.store";
+
+const createMocks = (): {
+  manusClient: ManusClient;
+  store: TaskCreationStore;
+  whatsappAdapter: WhatsAppAdapter;
+} => {
+  const manusClient = {
+    createTask: vi.fn(),
+  } as unknown as ManusClient;
+
+  const store = {
+    createTaskRecord: vi.fn(),
+    linkInboundMessageToTask: vi.fn(),
+    createOutboundMessage: vi.fn(),
+  } as unknown as TaskCreationStore;
+
+  const whatsappAdapter = {
+    sendTextMessage: vi.fn(),
+    sendMediaMessage: vi.fn(),
+    setTyping: vi.fn(),
+  } as unknown as WhatsAppAdapter;
+
+  return { manusClient, store, whatsappAdapter };
+};
+
+describe("createTaskFromInboundMessage", () => {
+  it("creates task, links inbound message, and sends acknowledgement", async () => {
+    const deps = createMocks();
+    vi.mocked(deps.manusClient.createTask).mockResolvedValue({
+      task_id: "task-123",
+      task_title: "Analyze receipt",
+      task_url: "https://manus.im/app/task-123",
+    });
+    vi.mocked(deps.store.createOutboundMessage).mockResolvedValue("outbound-1");
+
+    const now = new Date("2026-02-13T12:00:00.000Z");
+
+    const result = await createTaskFromInboundMessage(
+      {
+        sessionId: "session-1",
+        inboundMessageId: "inbound-1",
+        chatId: "15551234567@s.whatsapp.net",
+        text: "Please summarize this",
+        attachments: [
+          {
+            kind: "image",
+            mimetype: "image/png",
+            fileName: "img.png",
+            sizeBytes: 3,
+            buffer: Buffer.from("abc"),
+          },
+        ],
+        senderId: "assistant",
+        now: () => now,
+      },
+      deps,
+    );
+
+    expect(vi.mocked(deps.manusClient.createTask)).toHaveBeenCalledWith(
+      "Please summarize this",
+      expect.objectContaining({
+        taskMode: "adaptive",
+        interactiveMode: true,
+        hideInTaskList: true,
+        attachments: [
+          {
+            filename: "img.png",
+            fileData: "data:image/png;base64,YWJj",
+          },
+        ],
+      }),
+    );
+
+    expect(vi.mocked(deps.store.linkInboundMessageToTask)).toHaveBeenCalledWith({
+      messageId: "inbound-1",
+      taskId: "task-123",
+      routeReason: taskCreationConstants.DEFAULT_ROUTE_REASON,
+    });
+
+    expect(vi.mocked(deps.whatsappAdapter.sendTextMessage)).toHaveBeenCalledWith(
+      "15551234567@s.whatsapp.net",
+      'Got it - working on "Analyze receipt" now.',
+    );
+    expect(vi.mocked(deps.store.createOutboundMessage)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        manusTaskId: "task-123",
+      }),
+    );
+
+    expect(result).toEqual({
+      taskId: "task-123",
+      taskTitle: "Analyze receipt",
+      taskUrl: "https://manus.im/app/task-123",
+      ackMessageId: "outbound-1",
+      ackText: 'Got it - working on "Analyze receipt" now.',
+    });
+  });
+
+  it("uses fallback prompt when inbound message has only media", async () => {
+    const deps = createMocks();
+    vi.mocked(deps.manusClient.createTask).mockResolvedValue({
+      task_id: "task-456",
+      task_title: "Media task",
+      task_url: "https://manus.im/app/task-456",
+    });
+    vi.mocked(deps.store.createOutboundMessage).mockResolvedValue("outbound-2");
+
+    await createTaskFromInboundMessage(
+      {
+        sessionId: "session-2",
+        inboundMessageId: "inbound-2",
+        chatId: "15551234567@s.whatsapp.net",
+        text: null,
+        attachments: [
+          {
+            kind: "document",
+            mimetype: "application/pdf",
+            fileName: "report.pdf",
+            sizeBytes: 5,
+            buffer: Buffer.from("hello"),
+          },
+        ],
+        senderId: "assistant",
+      },
+      deps,
+    );
+
+    expect(vi.mocked(deps.manusClient.createTask)).toHaveBeenCalledWith(
+      taskCreationConstants.DEFAULT_PROMPT_FOR_MEDIA,
+      expect.any(Object),
+    );
+  });
+
+  it("falls back to prompt-derived title when Manus returns blank title", async () => {
+    const deps = createMocks();
+    vi.mocked(deps.manusClient.createTask).mockResolvedValue({
+      task_id: "task-789",
+      task_title: "",
+      task_url: "https://manus.im/app/task-789",
+    });
+    vi.mocked(deps.store.createOutboundMessage).mockResolvedValue("outbound-3");
+
+    const result = await createTaskFromInboundMessage(
+      {
+        sessionId: "session-3",
+        inboundMessageId: "inbound-3",
+        chatId: "15551234567@s.whatsapp.net",
+        text: "Need help drafting an email about project status",
+        attachments: [],
+        senderId: "assistant",
+      },
+      deps,
+    );
+
+    expect(result.taskTitle).toBe("Need help drafting an email about project status");
+    expect(result.ackText).toBe('Got it - working on "Need help drafting an email about project status" now.');
+  });
+});

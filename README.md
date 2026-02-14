@@ -1,36 +1,62 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Agent 7
 
-## Getting Started
+Agent 7 is a WhatsApp-to-Manus task execution bridge.
 
-First, run the development server:
+This project is inspired by OpenClaw and NanoClaw. Their local-machine-first setup can be less scalable and harder to standardize for team/enterprise security needs. Agent 7 uses Manus as the execution backend so admins can centrally configure policies, profiles, and access for all members.
+
+## Prerequisites
+
+- Node.js 20+
+- npm 10+
+- Neon Postgres database
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Populate `.env` with real credentials before running the app.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## First Run (Pair + Configure WhatsApp)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# 1) Run DB migrations
+npm run db:migrate
 
-## Learn More
+# 2) Pair your WhatsApp account (scan QR in terminal)
+npm run whatsapp:auth
 
-To learn more about Next.js, take a look at the following resources:
+# 3) Configure bot channels/trigger settings
+npm run whatsapp:setup
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# 4) Start app
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Scripts
 
-## Deploy on Vercel
+- `npm run dev`: start Next.js in development mode
+- `npm run build`: build production assets
+- `npm run start`: run production server
+- `npm run lint`: run ESLint
+- `npm run test`: run unit tests
+- `npm run test:watch`: run tests in watch mode
+- `npm run test:coverage`: run unit tests with coverage
+- `npm run test:integration`: run integration tests (requires `.env`)
+- `npm run test:all`: run unit + integration tests (requires `.env`)
+- `npm run whatsapp:auth`: pair WhatsApp device and persist Baileys credentials
+- `npm run whatsapp:setup`: interactive setup for assistant name + main/registered chats
+- `npm run db:generate`: generate Drizzle SQL migrations
+- `npm run db:migrate`: run migrations
+- `npm run db:studio`: open Drizzle Studio
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Database
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Schema is defined in `src/db/schema.ts` and migration output is stored in `drizzle/`.
+
+## Security Notes
+
+- Do not commit `.env`.
+- WhatsApp auth/session files are stored under `.data/` and should remain local.
