@@ -3,8 +3,8 @@
 ## 0) Execution State (Jira-Style)
 
 Last updated: 2026-02-15
-Current release gate: **F11 Phase 1 OSS Workspace Scoping**
-Status: **F1-F9 complete; F11 Phase 1 OSS complete (workspace-scoped schema + default tenant), managed authn/authz pending**
+Current release gate: **F12 Admin Console — Self-Service Setup & DB-Backed Config**
+Status: **F1-F9 complete; F11 Phase 1 OSS complete; F12 in planning (admin console, DB config, channel management UI)**
 
 ### Release Log
 
@@ -20,6 +20,7 @@ Status: **F1-F9 complete; F11 Phase 1 OSS complete (workspace-scoped schema + de
 | F8 | Decouple WhatsApp setup + chat targeting | 🔧 In Progress | Separate auth/setup CLIs, bot-config.json, message filtering with name/mention triggers. See `f8-whatsapp-setup-chat-targeting.md` |
 | F9 | Runtime stabilization + webhook delivery reliability | ✅ Done | Routing fallback on classifier/continue failures, webhook registration script + callback path hardening, global runtime adapter + bootstrap recovery, outbound chunking, provider-verified stale cleanup. See `f9-runtime-stabilization-webhook-delivery.md` |
 | F11 | OSS core + managed SaaS authn/authz (multi-user enterprise) | ✅ OSS Phase 1 Complete | Workspace-scoped schema shipped for OSS (`workspaces` + `workspace_id` across domain tables), default workspace seeding/backfill migration generated, and store-layer scoping wired. Managed authn/authz phases remain planned. See `f11-oss-managed-multi-tenant-auth.md` |
+| F12 | Admin console — self-service setup, channel management & DB-backed config | 📋 Planning | Web UI replacing CLI scripts: DB-backed encrypted settings, WhatsApp QR pairing in browser, Cloudflare tunnel management, setup wizard. See `f12-admin-console-db-config.md` |
 
 ### Work Items
 
