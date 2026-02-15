@@ -15,6 +15,13 @@
       "when": 1771121217957,
       "tag": "0001_nice_miss_america",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1771127970675,
+      "tag": "0002_mysterious_wolf_cub",
+      "breakpoints": true
     }
   ]
 }

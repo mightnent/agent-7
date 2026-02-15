@@ -1,12 +1,15 @@
 import { z } from "zod";
 
+import { DEFAULT_WORKSPACE_ID } from "@/db/schema";
+
+const ENV_CACHE_TTL_MS = 30_000;
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  DATABASE_URL: z.string().url(),
-  MANUS_API_KEY: z.string().min(1),
+  MANUS_API_KEY: z.string().default(""),
   MANUS_BASE_URL: z.string().url().default("https://api.manus.ai"),
   MANUS_WEBHOOK_URL: z.string().url().optional(),
-  MANUS_WEBHOOK_SECRET: z.string().min(16),
+  MANUS_WEBHOOK_SECRET: z.string().default(""),
   MANUS_AGENT_PROFILE: z.enum(["manus-1.6", "manus-1.6-lite", "manus-1.6-max"]).default("manus-1.6"),
   MANUS_CONNECTOR_CATALOG_URL: z
     .string()
@@ -22,26 +25,63 @@ const envSchema = z.object({
   ROUTER_LLM_BASE_URL: z.string().url().default("https://api.openai.com"),
   WHATSAPP_AUTH_DIR: z.string().default("./.data/whatsapp-auth"),
   WHATSAPP_SESSION_NAME: z.string().default("default"),
-  INTERNAL_CLEANUP_TOKEN: z.string().min(16),
+  INTERNAL_CLEANUP_TOKEN: z.string().default(""),
 });
 
 export type Env = z.infer<typeof envSchema>;
+
+type EnvCacheEntry = {
+  value: Env;
+  expiresAt: number;
+};
+
+const workspaceCache = new Map<string, EnvCacheEntry>();
 
 export const parseEnv = (source: Record<string, string | undefined>): Env => {
   return envSchema.parse(source);
 };
 
-let cachedEnv: Env | null = null;
-
-export const getEnv = (): Env => {
-  if (cachedEnv) {
-    return cachedEnv;
+const readWorkspaceSettingsEnvMap = async (
+  workspaceId: string,
+): Promise<Record<string, string>> => {
+  if (process.env.NODE_ENV === "test") {
+    return {};
   }
 
-  cachedEnv = parseEnv(process.env);
-  return cachedEnv;
+  const { settingsService } = await import("./config/settings-service");
+  const categories = ["manus", "router", "connectors", "internal", "whatsapp"] as const;
+  const entries = await Promise.all(
+    categories.map(async (category) => {
+      const values = await settingsService.getCategory(workspaceId, category);
+      return Object.entries(values);
+    }),
+  );
+
+  return Object.fromEntries(entries.flat());
+};
+
+export const getEnv = async (workspaceId = DEFAULT_WORKSPACE_ID): Promise<Env> => {
+  const cached = workspaceCache.get(workspaceId);
+  const now = Date.now();
+
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
+  }
+
+  const workspaceEnv = await readWorkspaceSettingsEnvMap(workspaceId);
+  const parsed = parseEnv({
+    ...process.env,
+    ...workspaceEnv,
+  });
+
+  workspaceCache.set(workspaceId, {
+    value: parsed,
+    expiresAt: now + ENV_CACHE_TTL_MS,
+  });
+
+  return parsed;
 };
 
 export const resetEnvCacheForTests = (): void => {
-  cachedEnv = null;
+  workspaceCache.clear();
 };

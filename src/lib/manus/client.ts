@@ -236,8 +236,8 @@ export const toManusBase64Attachments = (attachments: InboundAttachmentLike[]): 
   }));
 };
 
-export const createManusClientFromEnv = (): ManusClient => {
-  const env = getEnv();
+export const createManusClientFromEnv = async (): Promise<ManusClient> => {
+  const env = await getEnv();
 
   return new ManusClient({
     apiKey: env.MANUS_API_KEY,

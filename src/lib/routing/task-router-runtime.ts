@@ -77,11 +77,11 @@ export class OpenAiCompatibleLlmCompletionClient implements LlmCompletionClient 
   }
 }
 
-export const createTaskRouterFromEnv = (options?: {
+export const createTaskRouterFromEnv = async (options?: {
   store?: TaskRouterStore;
   fetchImpl?: typeof fetch;
-}): TaskRouter => {
-  const env = getEnv();
+}): Promise<TaskRouter> => {
+  const env = await getEnv();
 
   let classifier: TaskRouterClassifier = new FallbackNewTaskClassifier();
 

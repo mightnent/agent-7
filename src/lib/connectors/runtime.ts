@@ -57,11 +57,11 @@ const getConnectorMemoryStore = (): ConnectorSessionMemoryStore => {
   return connectorMemorySingleton;
 };
 
-export const createConnectorResolverFromEnv = (options?: {
+export const createConnectorResolverFromEnv = async (options?: {
   fetchImpl?: typeof fetch;
   memoryStore?: ConnectorSessionMemoryStore;
-}): ConnectorResolver => {
-  const env = getEnv();
+}): Promise<ConnectorResolver> => {
+  const env = await getEnv();
   const source = new ManusPublicConnectorCatalog({
     endpoint: env.MANUS_CONNECTOR_CATALOG_URL,
     limit: env.MANUS_CONNECTOR_CATALOG_LIMIT,

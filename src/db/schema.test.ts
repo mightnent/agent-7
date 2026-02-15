@@ -12,6 +12,7 @@ import {
   stopReasonEnum,
   taskStatusEnum,
   webhookEventTypeEnum,
+  workspaceSettings,
   workspaces,
 } from "./schema";
 
@@ -23,6 +24,7 @@ describe("db schema", () => {
     expect(getTableName(manusTasks)).toBe("manus_tasks");
     expect(getTableName(manusWebhookEvents)).toBe("manus_webhook_events");
     expect(getTableName(manusAttachments)).toBe("manus_attachments");
+    expect(getTableName(workspaceSettings)).toBe("workspace_settings");
   });
 
   it("defines expected enum values", () => {

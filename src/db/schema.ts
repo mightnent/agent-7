@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  boolean,
   index,
   integer,
   jsonb,
@@ -184,5 +185,28 @@ export const manusAttachments = pgTable(
     index("manus_attachments_workspace_task_id_idx").on(t.workspaceId, t.taskId),
     index("manus_attachments_task_id_idx").on(t.taskId),
     index("manus_attachments_expires_at_idx").on(t.expiresAt),
+  ],
+);
+
+export const workspaceSettings = pgTable(
+  "workspace_settings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .default(sql.raw(`'${DEFAULT_WORKSPACE_ID}'::uuid`))
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    category: text("category").notNull(),
+    key: text("key").notNull(),
+    value: text("value"),
+    encryptedValue: text("encrypted_value"),
+    isSensitive: boolean("is_sensitive").notNull().default(false),
+    keyVersion: integer("key_version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("workspace_settings_workspace_category_key_unique").on(t.workspaceId, t.category, t.key),
+    index("workspace_settings_workspace_category_idx").on(t.workspaceId, t.category),
   ],
 );

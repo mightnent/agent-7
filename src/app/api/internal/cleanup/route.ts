@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request): Promise<Response> {
-  const env = getEnv();
+  const env = await getEnv();
   const provided = request.headers.get("x-internal-token");
 
   if (!provided || provided !== env.INTERNAL_CLEANUP_TOKEN) {
@@ -24,10 +24,11 @@ export async function POST(request: Request): Promise<Response> {
   const { DrizzleCleanupStore } = await import("@/lib/ops/cleanup.store");
   const adapter = getRuntimeWhatsAppAdapter() ?? createNoopWhatsAppAdapter();
 
+  const manusClient = await createManusClientFromEnv();
   const summary = await runCleanup({
     store: new DrizzleCleanupStore(),
     whatsappAdapter: adapter,
-    manusClient: createManusClientFromEnv(),
+    manusClient,
   });
 
   return NextResponse.json({

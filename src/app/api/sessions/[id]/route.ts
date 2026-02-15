@@ -11,7 +11,7 @@ export async function GET(
     params: Promise<{ id: string }>;
   },
 ): Promise<Response> {
-  const env = getEnv();
+  const env = await getEnv();
   const provided = request.headers.get("x-internal-token");
   if (!provided || provided !== env.INTERNAL_CLEANUP_TOKEN) {
     return NextResponse.json(

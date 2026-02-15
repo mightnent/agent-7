@@ -25,8 +25,8 @@ const redactUrl = (url: URL): string => {
   return cloned.toString();
 };
 
-const ensureCallbackUrl = (): URL => {
-  const env = getEnv();
+const ensureCallbackUrl = async (): Promise<URL> => {
+  const env = await getEnv();
 
   const fromArg = readArgValue("--url");
   const fromEnv = env.MANUS_WEBHOOK_URL?.trim();
@@ -59,8 +59,8 @@ const ensureCallbackUrl = (): URL => {
 };
 
 const main = async (): Promise<void> => {
-  const env = getEnv();
-  const callbackUrl = ensureCallbackUrl();
+  const env = await getEnv();
+  const callbackUrl = await ensureCallbackUrl();
 
   if (isLocalhostLike(callbackUrl)) {
     console.warn("Warning: localhost callback URL will not be reachable from Manus cloud.");

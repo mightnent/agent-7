@@ -4,7 +4,6 @@ import { parseEnv } from "./env";
 
 const baseEnv = {
   NODE_ENV: "test",
-  DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/manus_whatsapp",
   MANUS_API_KEY: "manus-api-key",
   MANUS_BASE_URL: "https://api.manus.ai",
   MANUS_WEBHOOK_SECRET: "super-secret-webhook",
@@ -18,13 +17,12 @@ describe("parseEnv", () => {
   it("accepts a valid environment map", () => {
     const env = parseEnv(baseEnv);
 
-    expect(env.DATABASE_URL).toBe(baseEnv.DATABASE_URL);
+    expect(env.MANUS_API_KEY).toBe(baseEnv.MANUS_API_KEY);
     expect(env.MANUS_AGENT_PROFILE).toBe("manus-1.6");
   });
 
   it("applies defaults for optional values", () => {
     const env = parseEnv({
-      DATABASE_URL: baseEnv.DATABASE_URL,
       MANUS_API_KEY: baseEnv.MANUS_API_KEY,
       MANUS_WEBHOOK_SECRET: baseEnv.MANUS_WEBHOOK_SECRET,
       INTERNAL_CLEANUP_TOKEN: baseEnv.INTERNAL_CLEANUP_TOKEN,
@@ -35,7 +33,7 @@ describe("parseEnv", () => {
     expect(env.WHATSAPP_SESSION_NAME).toBe("default");
   });
 
-  it("throws when a required key is missing", () => {
-    expect(() => parseEnv({ ...baseEnv, MANUS_API_KEY: undefined })).toThrowError();
+  it("throws when url-like keys are invalid", () => {
+    expect(() => parseEnv({ ...baseEnv, MANUS_BASE_URL: "not-a-url" })).toThrowError();
   });
 });

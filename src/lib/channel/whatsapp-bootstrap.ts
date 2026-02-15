@@ -101,7 +101,7 @@ export async function bootBaileys(): Promise<void> {
     state.booted = false;
   }
 
-  const env = getEnv();
+  const env = await getEnv();
 
   // --- Bot config ---
   const botConfig: BotConfig | null = loadBotConfig(env.WHATSAPP_AUTH_DIR);
@@ -150,12 +150,12 @@ export async function bootBaileys(): Promise<void> {
   });
 
   // --- Orchestration deps (created once, reused across messages) ---
-  const manusClient = createManusClientFromEnv();
+  const manusClient = await createManusClientFromEnv();
   const taskCreationStore = new DrizzleTaskCreationStore();
   const eventProcessorStore = new DrizzleEventProcessorStore();
   const taskRouterStore = new DrizzleTaskRouterStore();
-  const router = createTaskRouterFromEnv({ store: taskRouterStore });
-  const connectorResolver = createConnectorResolverFromEnv();
+  const router = await createTaskRouterFromEnv({ store: taskRouterStore });
+  const connectorResolver = await createConnectorResolverFromEnv();
 
   // --- Connect ---
   const connect = (): void => {

@@ -44,7 +44,7 @@ describe("createTaskRouterFromEnv", () => {
     process.env.ROUTER_LLM_PROVIDER = "none";
     process.env.ROUTER_LLM_API_KEY = "";
 
-    const router = createTaskRouterFromEnv();
+    const router = await createTaskRouterFromEnv();
     const result = await router.route({
       message: "hello",
       activeTasks: [

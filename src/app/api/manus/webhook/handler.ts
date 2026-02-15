@@ -39,7 +39,7 @@ export const processManusWebhook = async (
     );
   }
 
-  const env = getEnv();
+  const env = await getEnv();
   if (providedSecret !== env.MANUS_WEBHOOK_SECRET) {
     return NextResponse.json(
       {

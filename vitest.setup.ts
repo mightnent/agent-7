@@ -1,4 +1,5 @@
 process.env.DATABASE_URL ??= "postgresql://postgres:postgres@localhost:5432/manus_whatsapp";
+process.env.DB_ENCRYPTION_KEY ??= "a".repeat(64);
 process.env.MANUS_API_KEY ??= "test-manus-api-key";
 process.env.MANUS_BASE_URL ??= "https://open.manus.ai";
 process.env.MANUS_WEBHOOK_SECRET ??= "test-webhook-secret-1234";
