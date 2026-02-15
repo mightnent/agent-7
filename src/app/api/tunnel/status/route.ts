@@ -1,7 +1,7 @@
-import { randomBytes } from "node:crypto";
-
 import { NextResponse } from "next/server";
+
 import { requireOssApiAccess } from "@/lib/api/oss-admin-guard";
+import { getTunnelStatus } from "@/lib/tunnel/manager";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,12 +12,6 @@ export async function GET(request: Request): Promise<Response> {
     return guard;
   }
 
-  const keyHex = randomBytes(32).toString("hex");
-
-  return NextResponse.json({
-    status: "ok",
-    key: keyHex,
-    format: "hex-64",
-    instruction: "Put this value in DB_ENCRYPTION_KEY in .env and restart the server.",
-  });
+  const tunnel = getTunnelStatus();
+  return NextResponse.json({ status: "ok", tunnel });
 }

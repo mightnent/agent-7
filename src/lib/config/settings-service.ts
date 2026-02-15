@@ -10,6 +10,62 @@ import {
   type SettingsCategory,
 } from "./settings-catalog";
 
+const resolveLegacyFallback = async (
+  workspaceId: string,
+  category: string,
+  key: string,
+): Promise<string | null> => {
+  if (category === "internal" && key === "mock_token") {
+    const [legacyRow] = await db
+      .select({
+        value: workspaceSettings.value,
+        encryptedValue: workspaceSettings.encryptedValue,
+        isSensitive: workspaceSettings.isSensitive,
+      })
+      .from(workspaceSettings)
+      .where(
+        and(
+          eq(workspaceSettings.workspaceId, workspaceId),
+          eq(workspaceSettings.category, "internal"),
+          eq(workspaceSettings.key, "cleanup_token"),
+        ),
+      )
+      .limit(1);
+
+    if (legacyRow) {
+      return toPlaintext(legacyRow);
+    }
+
+    return process.env.INTERNAL_CLEANUP_TOKEN?.trim() || null;
+  }
+
+  if (category === "connectors" && key === "enabled_uuids") {
+    const [legacyRow] = await db
+      .select({
+        value: workspaceSettings.value,
+        encryptedValue: workspaceSettings.encryptedValue,
+        isSensitive: workspaceSettings.isSensitive,
+      })
+      .from(workspaceSettings)
+      .where(
+        and(
+          eq(workspaceSettings.workspaceId, workspaceId),
+          eq(workspaceSettings.category, "connectors"),
+          eq(workspaceSettings.key, "enabled_uids"),
+        ),
+      )
+      .limit(1);
+
+    if (legacyRow) {
+      return toPlaintext(legacyRow);
+    }
+
+    return process.env.MANUS_ENABLED_CONNECTOR_UIDS?.trim() || null;
+  }
+
+  return null;
+};
+
 export interface SettingsService {
   get(workspaceId: string, category: string, key: string): Promise<string | null>;
   getCategory(workspaceId: string, category: SettingsCategory): Promise<Record<string, string>>;
@@ -36,7 +92,13 @@ const toPlaintext = (row: {
 class DrizzleSettingsService implements SettingsService {
   async get(workspaceId: string, category: string, key: string): Promise<string | null> {
     const definition = getSettingDefinition(category, key);
-    const envFallback = definition ? process.env[definition.envVar] ?? null : null;
+    const envFallback = definition
+      ? process.env[definition.envVar] ?? (category === "internal" && key === "mock_token"
+          ? process.env.INTERNAL_CLEANUP_TOKEN
+          : category === "connectors" && key === "enabled_uuids"
+            ? process.env.MANUS_ENABLED_CONNECTOR_UIDS
+          : null)
+      : null;
 
     const [row] = await db
       .select({
@@ -55,7 +117,7 @@ class DrizzleSettingsService implements SettingsService {
       .limit(1);
 
     if (!row) {
-      return envFallback;
+      return (await resolveLegacyFallback(workspaceId, category, key)) ?? envFallback;
     }
 
     return toPlaintext(row) ?? envFallback;

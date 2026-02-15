@@ -1,6 +1,12 @@
 import type { CatalogConnector, ConnectorCatalog } from "./catalog";
 
-type ConnectorResolutionSource = "manual_alias" | "catalog_name" | "session_memory" | "none" | "ambiguous";
+type ConnectorResolutionSource =
+  | "configured_allowlist"
+  | "manual_alias"
+  | "catalog_name"
+  | "session_memory"
+  | "none"
+  | "ambiguous";
 
 export interface ConnectorResolution {
   connectorUids: string[];
@@ -100,6 +106,20 @@ export class RuleBasedConnectorResolver implements ConnectorResolver {
   ) {}
 
   async resolve(input: { sessionId: string; message: string }): Promise<ConnectorResolution> {
+    const configured = this.deps.enabledConnectorUids
+      ?.map((uid) => uid.trim())
+      .filter(Boolean) ?? [];
+    if (configured.length > 0) {
+      const connectorUids = [...new Set(configured)];
+      this.deps.sessionMemory.set(input.sessionId, connectorUids);
+      return {
+        connectorUids,
+        confidence: 1,
+        reason: "configured_enabled_connector_allowlist",
+        source: "configured_allowlist",
+      };
+    }
+
     const messageNormalized = normalize(input.message);
     const messageCompact = compact(input.message);
 

@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CircleHelp, Eye, EyeOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Category = "manus" | "router" | "connectors" | "internal" | "whatsapp";
 
@@ -29,11 +31,45 @@ const CATEGORIES: Array<{ id: Category; label: string }> = [
   { id: "whatsapp", label: "WhatsApp" },
 ];
 
+const AGENT_PROFILE_OPTIONS = [
+  { value: "manus-1.6", label: "manus-1.6" },
+  { value: "manus-1.6-lite", label: "manus-1.6-lite" },
+  { value: "manus-1.6-max", label: "manus-1.6-max" },
+] as const;
+
+const LLM_PROVIDER_OPTIONS = [
+  { value: "none", label: "None (disable router LLM)" },
+  { value: "openai_compatible", label: "OpenAI-Compatible API" },
+] as const;
+
 const prettifyKey = (key: string): string => {
+  if (key === "webhook_url") {
+    return "Webhook Base URL";
+  }
+  if (key === "mock_token") {
+    return "Mock Token";
+  }
+
   return key
     .split("_")
     .map((part) => part[0].toUpperCase() + part.slice(1))
     .join(" ");
+};
+
+const buildComputedWebhookUrl = (baseUrl: string, secret: string): string => {
+  if (!baseUrl.trim()) {
+    return "";
+  }
+
+  try {
+    const callback = new URL("/api/manus/webhook", baseUrl.trim());
+    if (secret.trim()) {
+      callback.searchParams.set("secret", secret.trim());
+    }
+    return callback.toString();
+  } catch {
+    return "";
+  }
 };
 
 const createInitialState = (): Record<Category, CategoryState> => ({
@@ -43,6 +79,40 @@ const createInitialState = (): Record<Category, CategoryState> => ({
   internal: { loading: true, saving: false, error: null, settings: [] },
   whatsapp: { loading: true, saving: false, error: null, settings: [] },
 });
+
+const getSelectOptions = (
+  category: Category,
+  key: string,
+): ReadonlyArray<{ value: string; label: string }> | null => {
+  if (category === "manus" && key === "agent_profile") {
+    return AGENT_PROFILE_OPTIONS;
+  }
+
+  if (category === "router" && key === "llm_provider") {
+    return LLM_PROVIDER_OPTIONS;
+  }
+
+  return null;
+};
+
+const getVisibleSettings = (category: Category, settings: SettingRow[]): SettingRow[] => {
+  if (category === "connectors") {
+    return settings.filter((setting) => setting.key === "enabled_uuids");
+  }
+
+  return settings;
+};
+
+const getSettingHelpText = (key: string): string | null => {
+  if (key === "mock_token") {
+    return "OSS-only mock auth token for API route protection. In managed mode, use short-lived JWT with authn/authz.";
+  }
+  if (key === "enabled_uuids") {
+    return "Manus Apps/MCP connector UUID allowlist (comma-separated). Find each UUID in Manus: Settings -> Connectors -> open specific connector.";
+  }
+
+  return null;
+};
 
 export function ConfigEditor() {
   const [state, setState] = useState<Record<Category, CategoryState>>(createInitialState);
@@ -87,6 +157,12 @@ export function ConfigEditor() {
   }, []);
 
   const hasAnyLoading = useMemo(() => Object.values(state).some((item) => item.loading), [state]);
+  const computedWebhookUrl = useMemo(() => {
+    const manuscriptSettings = state.manus.settings;
+    const webhookBaseUrl = manuscriptSettings.find((setting) => setting.key === "webhook_url")?.value ?? "";
+    const webhookSecret = manuscriptSettings.find((setting) => setting.key === "webhook_secret")?.value ?? "";
+    return buildComputedWebhookUrl(webhookBaseUrl, webhookSecret);
+  }, [state.manus.settings]);
 
   const onChangeSetting = (category: Category, key: string, value: string): void => {
     setState((current) => ({
@@ -111,7 +187,7 @@ export function ConfigEditor() {
     }));
 
     try {
-      const categorySettings = state[category].settings;
+      const categorySettings = getVisibleSettings(category, state[category].settings);
       const settingsPayload = Object.fromEntries(
         categorySettings.map((setting) => [setting.key, setting.value]),
       );
@@ -177,21 +253,70 @@ export function ConfigEditor() {
             {section.error ? <p className="mb-3 text-sm text-destructive">{section.error}</p> : null}
 
             <CardContent>
-              {section.settings.map((setting) => {
+              {getVisibleSettings(id, section.settings).map((setting) => {
                 const visibilityKey = `${id}:${setting.key}`;
                 const isSecretVisible = visibleSecrets[visibilityKey] ?? false;
+                const selectOptions = getSelectOptions(id, setting.key);
+                const isSelectField = Boolean(selectOptions);
 
                 return (
                   <label key={setting.key} className="block">
                     <div className="mb-1 flex items-center justify-between">
-                      <span className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                      <span className="flex items-center gap-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">
                         {prettifyKey(setting.key)}
+                        {getSettingHelpText(setting.key) ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center text-muted-foreground hover:text-foreground"
+                                  aria-label={`Info about ${prettifyKey(setting.key)}`}
+                                >
+                                  <CircleHelp className="size-3.5" />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-64 text-xs">
+                                {getSettingHelpText(setting.key)}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : null}
                       </span>
-                      {setting.sensitive ? (
+                    </div>
+
+                    <div className="relative">
+                      {isSelectField ? (
+                        <select
+                          value={setting.value}
+                          className="border-input focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+                          onChange={(event) => {
+                            onChangeSetting(id, setting.key, event.target.value);
+                          }}
+                        >
+                          {selectOptions?.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <Input
+                          className={setting.sensitive ? "pr-10" : undefined}
+                          value={setting.value}
+                          type={setting.sensitive && !isSecretVisible ? "password" : "text"}
+                          onChange={(event) => {
+                            onChangeSetting(id, setting.key, event.target.value);
+                          }}
+                        />
+                      )}
+                      {setting.sensitive && !isSelectField ? (
                         <Button
                           type="button"
-                          variant="secondary"
-                          size="sm"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={isSecretVisible ? "Hide value" : "Show value"}
+                          className="absolute right-1 top-1/2 -translate-y-1/2"
                           onClick={() => {
                             setVisibleSecrets((current) => ({
                               ...current,
@@ -199,18 +324,52 @@ export function ConfigEditor() {
                             }));
                           }}
                         >
-                          {isSecretVisible ? "Hide" : "Reveal"}
+                          {isSecretVisible ? <EyeOff /> : <Eye />}
                         </Button>
                       ) : null}
                     </div>
 
-                    <Input
-                      value={setting.value}
-                      type={setting.sensitive && !isSecretVisible ? "password" : "text"}
-                      onChange={(event) => {
-                        onChangeSetting(id, setting.key, event.target.value);
-                      }}
-                    />
+                    {id === "manus" && setting.key === "webhook_url" ? (
+                      <div className="mt-3">
+                        <div className="mb-1 flex items-center justify-between">
+                          <span className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                            Webhook URL (Read Only)
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <Input
+                            readOnly
+                            className="pr-10"
+                            value={computedWebhookUrl}
+                            type={
+                              (visibleSecrets["manus:computed_webhook_url"] ?? false)
+                                ? "text"
+                                : "password"
+                            }
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            className="absolute right-1 top-1/2 -translate-y-1/2"
+                            aria-label={
+                              (visibleSecrets["manus:computed_webhook_url"] ?? false)
+                                ? "Hide webhook URL"
+                                : "Show webhook URL"
+                            }
+                            onClick={() => {
+                              setVisibleSecrets((current) => ({
+                                ...current,
+                                "manus:computed_webhook_url":
+                                  !(current["manus:computed_webhook_url"] ?? false),
+                              }));
+                            }}
+                          >
+                            {(visibleSecrets["manus:computed_webhook_url"] ?? false) ? <EyeOff /> : <Eye />}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
                   </label>
                 );
               })}

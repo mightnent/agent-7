@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireOssAdminRequest } from "@/lib/api/oss-admin-guard";
+import { requireOssApiAccess } from "@/lib/api/oss-admin-guard";
 import { getBaileysRuntimeState } from "@/lib/channel/whatsapp-bootstrap";
 import { getPairingSnapshot } from "@/lib/channel/whatsapp-pairing";
 import { getWhatsAppChannelState, loadWorkspaceBotConfig } from "@/lib/channel/workspace-channel-service";
@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request): Promise<Response> {
-  const guard = requireOssAdminRequest(request);
+  const guard = await requireOssApiAccess(request);
   if (guard) {
     return guard;
   }

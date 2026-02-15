@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { requireOssApiAccess } from "@/lib/api/oss-admin-guard";
-import { getEnv } from "@/lib/env";
+import { stopTunnel } from "@/lib/tunnel/manager";
 import { resolveWorkspaceId } from "@/lib/workspace/default-workspace";
-import { startPairing } from "@/lib/channel/whatsapp-pairing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,16 +14,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const workspaceId = resolveWorkspaceId();
-  const env = await getEnv(workspaceId);
+  const tunnel = await stopTunnel(workspaceId);
 
-  const snapshot = await startPairing({
-    workspaceId,
-    sessionName: env.WHATSAPP_SESSION_NAME,
-    authDir: env.WHATSAPP_AUTH_DIR,
-  });
-
-  return NextResponse.json({
-    status: "ok",
-    pairing: snapshot,
-  });
+  return NextResponse.json({ status: "ok", tunnel });
 }

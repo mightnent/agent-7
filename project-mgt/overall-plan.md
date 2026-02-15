@@ -4,7 +4,7 @@
 
 Last updated: 2026-02-15
 Current release gate: **F12 Admin Console — Self-Service Setup & DB-Backed Config**
-Status: **F1-F9 complete; F11 Phase 1 OSS complete; F12 in planning (admin console, DB config, channel management UI)**
+Status: **F1-F9 complete; F11 Phase 1 OSS complete; F12 Phase 1-3 complete (admin console + DB config + channel management + tunnel)**
 
 ### Release Log
 
@@ -20,7 +20,7 @@ Status: **F1-F9 complete; F11 Phase 1 OSS complete; F12 in planning (admin conso
 | F8 | Decouple WhatsApp setup + chat targeting | 🔧 In Progress | Separate auth/setup CLIs, bot-config.json, message filtering with name/mention triggers. See `f8-whatsapp-setup-chat-targeting.md` |
 | F9 | Runtime stabilization + webhook delivery reliability | ✅ Done | Routing fallback on classifier/continue failures, webhook registration script + callback path hardening, global runtime adapter + bootstrap recovery, outbound chunking, provider-verified stale cleanup. See `f9-runtime-stabilization-webhook-delivery.md` |
 | F11 | OSS core + managed SaaS authn/authz (multi-user enterprise) | ✅ OSS Phase 1 Complete | Workspace-scoped schema shipped for OSS (`workspaces` + `workspace_id` across domain tables), default workspace seeding/backfill migration generated, and store-layer scoping wired. Managed authn/authz phases remain planned. See `f11-oss-managed-multi-tenant-auth.md` |
-| F12 | Admin console — self-service setup, channel management & DB-backed config | 📋 Planning | Web UI replacing CLI scripts: DB-backed encrypted settings, WhatsApp QR pairing in browser, Cloudflare tunnel management, setup wizard. See `f12-admin-console-db-config.md` |
+| F12 | Admin console — self-service setup, channel management & DB-backed config | 🔧 In Progress | Phase 1-3 complete: DB settings UI, WhatsApp in-browser pairing/config, Cloudflare tunnel manager + webhook auto-registration, OSS admin route guard. Phase 4 (guide + status dashboard) pending. See `f12-admin-console-db-config.md` |
 
 ### Work Items
 
@@ -54,9 +54,9 @@ Status: **F1-F9 complete; F11 Phase 1 OSS complete; F12 in planning (admin conso
 1. **Webhook handler/route convergence**
    - `handleManusWebhook` currently represents a synchronous flow while the route uses async `after()` processing.
    - Decide one canonical path (remove/deprecate helper, or make route call helper in async mode).
-2. **Split internal auth tokens**
-   - `INTERNAL_CLEANUP_TOKEN` currently gates cleanup and read APIs.
-   - Introduce a separate read-only token if operational access boundaries are needed.
+2. **Replace OSS mock token with managed auth**
+   - `MOCK_TOKEN` is currently used as an OSS compatibility guard for admin APIs.
+   - Managed mode should enforce short-lived JWT authn/authz and workspace-scoped permissions.
 3. **F11 managed authn/authz follow-up**
    - Implement F11 Phase 2+ (principals, memberships, permissions, API keys, Cognito session flows).
    - Keep OSS mode auth-optional while introducing managed policy enforcement.

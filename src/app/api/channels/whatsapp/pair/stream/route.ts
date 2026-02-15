@@ -1,4 +1,4 @@
-import { requireOssAdminRequest } from "@/lib/api/oss-admin-guard";
+import { requireOssApiAccess } from "@/lib/api/oss-admin-guard";
 import { subscribePairing } from "@/lib/channel/whatsapp-pairing";
 
 export const runtime = "nodejs";
@@ -11,7 +11,7 @@ const asSseChunk = (event: string, payload: unknown): Uint8Array => {
 };
 
 export async function GET(request: Request): Promise<Response> {
-  const guard = requireOssAdminRequest(request);
+  const guard = await requireOssApiAccess(request);
   if (guard) {
     return guard;
   }

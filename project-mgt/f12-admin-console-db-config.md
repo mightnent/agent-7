@@ -1,7 +1,7 @@
 # F12: Admin Console — Self-Service Setup, Channel Management & DB-Backed Config
 
 **Date**: 2026-02-15
-**Status**: In Progress (Phase 1 + Phase 2 complete; Phase 3 pending)
+**Status**: In Progress (Phase 1 + Phase 2 + Phase 3 complete; Phase 4 pending)
 **Depends on**: F11 Phase 1 (workspace scoping — complete)
 
 ## Problem Statement
@@ -132,9 +132,9 @@ This allows:
 | `connectors` | `catalog_url` | no | `MANUS_CONNECTOR_CATALOG_URL` | |
 | `connectors` | `catalog_limit` | no | `MANUS_CONNECTOR_CATALOG_LIMIT` | |
 | `connectors` | `catalog_ttl_ms` | no | `MANUS_CONNECTOR_CATALOG_TTL_MS` | |
-| `connectors` | `enabled_uids` | no | `MANUS_ENABLED_CONNECTOR_UIDS` | CSV |
+| `connectors` | `enabled_uuids` | no | `MANUS_ENABLED_CONNECTOR_UUIDS` | CSV |
 | `connectors` | `manual_aliases` | no | `MANUS_MANUAL_CONNECTOR_ALIASES` | JSON |
-| `internal` | `cleanup_token` | yes | `INTERNAL_CLEANUP_TOKEN` | Auto-generated on first setup |
+| `internal` | `mock_token` | yes | `MOCK_TOKEN` | OSS-only API token; managed mode should use JWT authn/authz |
 | `whatsapp` | `auth_dir` | no | `WHATSAPP_AUTH_DIR` | Default: `./.data/whatsapp-auth` |
 | `whatsapp` | `session_name` | no | `WHATSAPP_SESSION_NAME` | Default: `default` |
 
@@ -446,9 +446,9 @@ src/app/
 | F12-12 | Modify Baileys bootstrap to read bot-config from DB | 2 | Complete |
 | F12-12b | Add `whatsapp_auth_keys` table + `useDbAuthState` adapter | 2 | Complete |
 | F12-12c | Filesystem-to-DB auth state migration script | 2 | Complete |
-| F12-13 | Implement tunnel process manager (spawn/kill/monitor) | 3 | Pending |
-| F12-14 | Build Tunnel page + API routes (start/stop/status) | 3 | Pending |
-| F12-15 | Auto-register Manus webhook on tunnel URL capture | 3 | Pending |
+| F12-13 | Implement tunnel process manager (spawn/kill/monitor) | 3 | Complete |
+| F12-14 | Build Tunnel page + API routes (start/stop/status) | 3 | Complete |
+| F12-15 | Auto-register Manus webhook on tunnel URL capture | 3 | Complete |
 | F12-16 | Build setup guide wizard page | 4 | Pending |
 | F12-17 | Build status/health dashboard page + API | 4 | Pending |
 
@@ -456,7 +456,7 @@ src/app/
 
 1. **Encryption key management**: `DB_ENCRYPTION_KEY` must be 32 bytes (accepted formats: 64-char hex or base64 that decodes to 32 bytes). Document generation: `openssl rand -hex 32`.
 2. **No plaintext secrets in DB**: All `is_sensitive=true` values stored only in `encrypted_value`. The `value` column is NULL for sensitive settings.
-3. **API route protection**: In OSS mode, Phase 2 routes now enforce same-origin/loopback admin access guard. In managed mode (F11 Phase 3+), routes should be upgraded to authenticated session + permission checks.
+3. **API route protection**: In OSS mode, admin API routes support same-origin/loopback or `MOCK_TOKEN` (`x-mock-token` / `Authorization: Bearer`). In managed mode (F11 Phase 3+), routes should be upgraded to authenticated session + permission checks.
 4. **Tunnel security**: The tunnel exposes the local server publicly. Document risks. Consider adding a toggle for "development only" warning.
 5. **SSE auth**: WhatsApp pairing SSE stream should validate the request comes from an authenticated session (managed mode) or same-origin (OSS mode).
 6. **Key rotation**: `key_version` column allows future rotation. Decrypt with old key, re-encrypt with new key, bump version.
@@ -501,6 +501,30 @@ No forced migration. No breaking changes. Fully backwards compatible.
   - Main channel selection split into Self Chat vs Group mode.
   - Phone-number input for self chat with fixed `@s.whatsapp.net` suffix.
   - Registered groups default to read-only summary; editable checklist is shown only when expanding whitelist editor.
+
+## Phase 3 Implementation Notes (Completed)
+
+- Added Cloudflare tunnel process manager (`src/lib/tunnel/manager.ts`):
+  - Spawns/stops `cloudflared tunnel --url http://localhost:<port>`.
+  - Tracks runtime state (`idle/starting/running/stopped/error`) and process metadata.
+  - Parses tunnel URL from process logs.
+- Added tunnel API routes:
+  - `POST /api/tunnel/start`
+  - `POST /api/tunnel/stop`
+  - `GET /api/tunnel/status`
+- Added tunnel dashboard page (`/tunnel`) with start/stop controls and status polling.
+- Implemented webhook auto-registration:
+  - On tunnel URL capture, computes callback URL and registers Manus webhook automatically.
+  - Persists `manus.webhook_url` as tunnel **base URL** (origin only).
+  - Exposes computed read-only webhook URL in Config UI (masked by default with reveal toggle).
+- Hardened OSS route guard:
+  - Added shared OSS admin guard supporting `x-mock-token` and `Authorization: Bearer`.
+  - Same-origin/loopback requests continue to work without additional headers.
+- Config UX refinements shipped during Phase 3:
+  - `Manus > agent_profile` is single-select dropdown.
+  - `Router > llm_provider` is single-select dropdown with user-friendly labels.
+  - Connector settings simplified in UI to show only `enabled_uuids`.
+  - `enabled_uuids` behavior now passes all enabled UUIDs to Manus; Manus decides which connector(s) to use.
 
 ### Baileys Auth State — DB Migration Design (Phase 2)
 

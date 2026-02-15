@@ -70,7 +70,7 @@ export const createConnectorResolverFromEnv = async (options?: {
 
   const catalog = new CachedConnectorCatalog(source, env.MANUS_CONNECTOR_CATALOG_TTL_MS);
 
-  const enabledUids = parseCsv(env.MANUS_ENABLED_CONNECTOR_UIDS);
+  const enabledUids = parseCsv(env.MANUS_ENABLED_CONNECTOR_UUIDS);
 
   return new RuleBasedConnectorResolver({
     catalog,

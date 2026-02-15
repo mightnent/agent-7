@@ -27,13 +27,13 @@ describe("RuleBasedConnectorResolver", () => {
     expect(result.source).toBe("catalog_name");
   });
 
-  it("prefers manual aliases for custom connectors", async () => {
+  it("returns full enabled allowlist when configured", async () => {
     const resolver = new RuleBasedConnectorResolver({
       catalog: createCatalog([{ uid: "clickup-uid", name: "ClickUp" }]),
       manualAliases: {
         "aether lab backlog": "custom-mcp-uid",
       },
-      enabledConnectorUids: ["clickup-uid", "custom-mcp-uid"],
+      enabledConnectorUids: ["clickup-uid", "custom-mcp-uid", "clickup-uid"],
       sessionMemory: new InMemoryConnectorSessionMemoryStore(),
     });
 
@@ -42,8 +42,8 @@ describe("RuleBasedConnectorResolver", () => {
       message: "Check aether lab backlog",
     });
 
-    expect(result.connectorUids).toEqual(["custom-mcp-uid"]);
-    expect(result.source).toBe("manual_alias");
+    expect(result.connectorUids).toEqual(["clickup-uid", "custom-mcp-uid"]);
+    expect(result.source).toBe("configured_allowlist");
   });
 
   it("reuses session memory when no explicit connector is mentioned", async () => {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { requireOssAdminRequest } from "@/lib/api/oss-admin-guard";
+import { requireOssApiAccess } from "@/lib/api/oss-admin-guard";
 import type { BotConfig } from "@/lib/channel/bot-config";
 import { saveWorkspaceBotConfig } from "@/lib/channel/workspace-channel-service";
 import { getEnv } from "@/lib/env";
@@ -26,7 +26,7 @@ const putConfigSchema = z.object({
 });
 
 export async function PUT(request: Request): Promise<Response> {
-  const guard = requireOssAdminRequest(request);
+  const guard = await requireOssApiAccess(request);
   if (guard) {
     return guard;
   }

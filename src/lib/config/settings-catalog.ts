@@ -28,14 +28,19 @@ export const SETTING_DEFINITIONS: readonly SettingDefinition[] = [
   { category: "connectors", key: "catalog_url", envVar: "MANUS_CONNECTOR_CATALOG_URL", sensitive: false },
   { category: "connectors", key: "catalog_limit", envVar: "MANUS_CONNECTOR_CATALOG_LIMIT", sensitive: false },
   { category: "connectors", key: "catalog_ttl_ms", envVar: "MANUS_CONNECTOR_CATALOG_TTL_MS", sensitive: false },
-  { category: "connectors", key: "enabled_uids", envVar: "MANUS_ENABLED_CONNECTOR_UIDS", sensitive: false },
+  {
+    category: "connectors",
+    key: "enabled_uuids",
+    envVar: "MANUS_ENABLED_CONNECTOR_UUIDS",
+    sensitive: false,
+  },
   {
     category: "connectors",
     key: "manual_aliases",
     envVar: "MANUS_MANUAL_CONNECTOR_ALIASES",
     sensitive: false,
   },
-  { category: "internal", key: "cleanup_token", envVar: "INTERNAL_CLEANUP_TOKEN", sensitive: true },
+  { category: "internal", key: "mock_token", envVar: "MOCK_TOKEN", sensitive: true },
   { category: "whatsapp", key: "auth_dir", envVar: "WHATSAPP_AUTH_DIR", sensitive: false },
   { category: "whatsapp", key: "session_name", envVar: "WHATSAPP_SESSION_NAME", sensitive: false },
 ] as const;

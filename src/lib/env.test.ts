@@ -10,7 +10,7 @@ const baseEnv = {
   MANUS_AGENT_PROFILE: "manus-1.6",
   WHATSAPP_AUTH_DIR: "./.data/whatsapp-auth",
   WHATSAPP_SESSION_NAME: "default",
-  INTERNAL_CLEANUP_TOKEN: "internal-cleanup-token",
+  MOCK_TOKEN: "mock-token",
 } satisfies Record<string, string>;
 
 describe("parseEnv", () => {
@@ -19,13 +19,14 @@ describe("parseEnv", () => {
 
     expect(env.MANUS_API_KEY).toBe(baseEnv.MANUS_API_KEY);
     expect(env.MANUS_AGENT_PROFILE).toBe("manus-1.6");
+    expect(env.MOCK_TOKEN).toBe(baseEnv.MOCK_TOKEN);
   });
 
   it("applies defaults for optional values", () => {
     const env = parseEnv({
       MANUS_API_KEY: baseEnv.MANUS_API_KEY,
       MANUS_WEBHOOK_SECRET: baseEnv.MANUS_WEBHOOK_SECRET,
-      INTERNAL_CLEANUP_TOKEN: baseEnv.INTERNAL_CLEANUP_TOKEN,
+      MOCK_TOKEN: baseEnv.MOCK_TOKEN,
     });
 
     expect(env.NODE_ENV).toBe("development");
@@ -35,5 +36,15 @@ describe("parseEnv", () => {
 
   it("throws when url-like keys are invalid", () => {
     expect(() => parseEnv({ ...baseEnv, MANUS_BASE_URL: "not-a-url" })).toThrowError();
+  });
+
+  it("supports INTERNAL_CLEANUP_TOKEN as legacy fallback for MOCK_TOKEN", () => {
+    const env = parseEnv({
+      MANUS_API_KEY: baseEnv.MANUS_API_KEY,
+      MANUS_WEBHOOK_SECRET: baseEnv.MANUS_WEBHOOK_SECRET,
+      INTERNAL_CLEANUP_TOKEN: "legacy-token",
+    });
+
+    expect(env.MOCK_TOKEN).toBe("legacy-token");
   });
 });

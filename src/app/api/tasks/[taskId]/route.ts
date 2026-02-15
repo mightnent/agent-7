@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getEnv } from "@/lib/env";
+import { requireOssApiAccess } from "@/lib/api/oss-admin-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,15 +11,9 @@ export async function GET(
     params: Promise<{ taskId: string }>;
   },
 ): Promise<Response> {
-  const env = await getEnv();
-  const provided = request.headers.get("x-internal-token");
-  if (!provided || provided !== env.INTERNAL_CLEANUP_TOKEN) {
-    return NextResponse.json(
-      {
-        status: "unauthorized",
-      },
-      { status: 401 },
-    );
+  const guard = await requireOssApiAccess(request);
+  if (guard) {
+    return guard;
   }
 
   const { taskId } = await context.params;

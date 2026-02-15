@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { DEFAULT_WORKSPACE_ID } from "@/db/schema";
+import { getEnv } from "@/lib/env";
 
 const normalizeHost = (host: string | null): string => {
   if (!host) {
@@ -61,4 +63,55 @@ export const requireOssAdminRequest = (request: Request): Response | null => {
     },
     { status: 401 },
   );
+};
+
+const readProvidedMockToken = (request: Request): string | null => {
+  const mockHeader = request.headers.get("x-mock-token")?.trim();
+  if (mockHeader) {
+    return mockHeader;
+  }
+
+  const legacyInternalHeader = request.headers.get("x-internal-token")?.trim();
+  if (legacyInternalHeader) {
+    return legacyInternalHeader;
+  }
+
+  const authHeader = request.headers.get("authorization")?.trim();
+  if (authHeader?.toLowerCase().startsWith("bearer ")) {
+    const token = authHeader.slice("bearer ".length).trim();
+    return token || null;
+  }
+
+  return null;
+};
+
+export const requireOssApiAccess = async (
+  request: Request,
+  workspaceId = DEFAULT_WORKSPACE_ID,
+): Promise<Response | null> => {
+  const originGuard = requireOssAdminRequest(request);
+  if (!originGuard) {
+    return null;
+  }
+
+  const env = await getEnv(workspaceId);
+  const configuredToken = (env.MOCK_TOKEN || env.INTERNAL_CLEANUP_TOKEN).trim();
+  const providedToken = readProvidedMockToken(request);
+
+  if (configuredToken) {
+    if (providedToken === configuredToken) {
+      return null;
+    }
+
+    return NextResponse.json(
+      {
+        status: "unauthorized",
+        error:
+          "Mock token required. Provide x-mock-token (or Authorization: Bearer <token>) for OSS admin API access.",
+      },
+      { status: 401 },
+    );
+  }
+
+  return originGuard;
 };

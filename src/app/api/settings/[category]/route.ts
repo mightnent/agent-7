@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { requireOssApiAccess } from "@/lib/api/oss-admin-guard";
 import { settingsService } from "@/lib/config/settings-service";
 import {
   getSettingDefinitionsByCategory,
@@ -24,12 +25,37 @@ const parseCategory = (raw: string): SettingsCategory | null => {
   return null;
 };
 
+const normalizeWebhookUrl = (value: string): string => {
+  try {
+    const url = new URL(value);
+    url.pathname = "";
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return value;
+  }
+};
+
+const normalizeSettingValue = (category: SettingsCategory, key: string, value: string): string => {
+  if (category === "manus" && key === "webhook_url") {
+    return normalizeWebhookUrl(value);
+  }
+
+  return value;
+};
+
 export async function GET(
-  _request: Request,
+  request: Request,
   context: {
     params: Promise<{ category: string }>;
   },
 ): Promise<Response> {
+  const guard = await requireOssApiAccess(request);
+  if (guard) {
+    return guard;
+  }
+
   const workspaceId = resolveWorkspaceId();
   const { category: rawCategory } = await context.params;
   const category = parseCategory(rawCategory);
@@ -43,7 +69,11 @@ export async function GET(
     definitions.map(async (definition) => ({
       key: definition.key,
       sensitive: definition.sensitive,
-      value: (await settingsService.get(workspaceId, category, definition.key)) ?? "",
+      value: normalizeSettingValue(
+        category,
+        definition.key,
+        (await settingsService.get(workspaceId, category, definition.key)) ?? "",
+      ),
     })),
   );
 
@@ -60,6 +90,11 @@ export async function PUT(
     params: Promise<{ category: string }>;
   },
 ): Promise<Response> {
+  const guard = await requireOssApiAccess(request);
+  if (guard) {
+    return guard;
+  }
+
   const workspaceId = resolveWorkspaceId();
   const { category: rawCategory } = await context.params;
   const category = parseCategory(rawCategory);
@@ -87,7 +122,7 @@ export async function PUT(
 
   try {
     for (const [key, value] of updates) {
-      await settingsService.set(workspaceId, category, key, value);
+      await settingsService.set(workspaceId, category, key, normalizeSettingValue(category, key, value));
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to persist settings";

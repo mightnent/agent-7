@@ -17,6 +17,7 @@ const envSchema = z.object({
     .default("https://api.manus.im/connectors.v1.ConnectorsPublicService/PublicListConnectors"),
   MANUS_CONNECTOR_CATALOG_LIMIT: z.coerce.number().int().positive().max(1000).default(200),
   MANUS_CONNECTOR_CATALOG_TTL_MS: z.coerce.number().int().positive().default(5 * 60 * 1000),
+  MANUS_ENABLED_CONNECTOR_UUIDS: z.string().optional(),
   MANUS_ENABLED_CONNECTOR_UIDS: z.string().optional(),
   MANUS_MANUAL_CONNECTOR_ALIASES: z.string().optional(),
   ROUTER_LLM_PROVIDER: z.enum(["none", "openai_compatible"]).default("none"),
@@ -25,6 +26,7 @@ const envSchema = z.object({
   ROUTER_LLM_BASE_URL: z.string().url().default("https://api.openai.com"),
   WHATSAPP_AUTH_DIR: z.string().default("./.data/whatsapp-auth"),
   WHATSAPP_SESSION_NAME: z.string().default("default"),
+  MOCK_TOKEN: z.string().default(""),
   INTERNAL_CLEANUP_TOKEN: z.string().default(""),
 });
 
@@ -37,8 +39,40 @@ type EnvCacheEntry = {
 
 const workspaceCache = new Map<string, EnvCacheEntry>();
 
+const normalizeOptionalString = (value: string | undefined): string | undefined => {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const normalizePositiveNumberString = (value: string | undefined): string | undefined => {
+  const normalized = normalizeOptionalString(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  const numeric = Number(normalized);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return undefined;
+  }
+
+  return normalized;
+};
+
 export const parseEnv = (source: Record<string, string | undefined>): Env => {
-  return envSchema.parse(source);
+  const normalized = {
+    ...source,
+    MOCK_TOKEN: source.MOCK_TOKEN ?? source.INTERNAL_CLEANUP_TOKEN,
+    MANUS_ENABLED_CONNECTOR_UUIDS:
+      source.MANUS_ENABLED_CONNECTOR_UUIDS ?? source.MANUS_ENABLED_CONNECTOR_UIDS,
+    MANUS_CONNECTOR_CATALOG_URL: normalizeOptionalString(source.MANUS_CONNECTOR_CATALOG_URL),
+    MANUS_CONNECTOR_CATALOG_LIMIT: normalizePositiveNumberString(source.MANUS_CONNECTOR_CATALOG_LIMIT),
+    MANUS_CONNECTOR_CATALOG_TTL_MS: normalizePositiveNumberString(source.MANUS_CONNECTOR_CATALOG_TTL_MS),
+  };
+  return envSchema.parse(normalized);
 };
 
 const readWorkspaceSettingsEnvMap = async (
