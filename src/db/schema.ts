@@ -210,3 +210,50 @@ export const workspaceSettings = pgTable(
     index("workspace_settings_workspace_category_idx").on(t.workspaceId, t.category),
   ],
 );
+
+export const workspaceChannels = pgTable(
+  "workspace_channels",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .default(sql.raw(`'${DEFAULT_WORKSPACE_ID}'::uuid`))
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    channel: channelEnum("channel").notNull().default("whatsapp"),
+    status: text("status").notNull().default("disconnected"),
+    phoneNumber: text("phone_number"),
+    displayName: text("display_name"),
+    connectedAt: timestamp("connected_at", { withTimezone: true }),
+    configJson: jsonb("config_json").notNull().default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("workspace_channels_workspace_channel_unique").on(t.workspaceId, t.channel)],
+);
+
+export const whatsappAuthKeys = pgTable(
+  "whatsapp_auth_keys",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .default(sql.raw(`'${DEFAULT_WORKSPACE_ID}'::uuid`))
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    sessionName: text("session_name").notNull().default("default"),
+    keyType: text("key_type").notNull(),
+    keyId: text("key_id").notNull(),
+    encryptedValue: text("encrypted_value").notNull(),
+    keyVersion: integer("key_version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("whatsapp_auth_keys_workspace_session_key_type_key_id_unique").on(
+      t.workspaceId,
+      t.sessionName,
+      t.keyType,
+      t.keyId,
+    ),
+    index("whatsapp_auth_keys_workspace_session_idx").on(t.workspaceId, t.sessionName),
+  ],
+);

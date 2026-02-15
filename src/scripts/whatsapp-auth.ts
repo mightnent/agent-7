@@ -85,7 +85,6 @@ async function main(): Promise<void> {
 
           // Reload auth state from the now-empty directory so Baileys
           // generates fresh identity keys and shows a new QR code.
-          // eslint-disable-next-line react-hooks/rules-of-hooks -- Baileys utility, not a React hook
           const reloaded = await useMultiFileAuthState(AUTH_DIR);
           authState = reloaded.state;
           saveCreds = reloaded.saveCreds;

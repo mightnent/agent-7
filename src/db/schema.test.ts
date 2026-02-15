@@ -11,7 +11,9 @@ import {
   routeActionEnum,
   stopReasonEnum,
   taskStatusEnum,
+  whatsappAuthKeys,
   webhookEventTypeEnum,
+  workspaceChannels,
   workspaceSettings,
   workspaces,
 } from "./schema";
@@ -25,6 +27,8 @@ describe("db schema", () => {
     expect(getTableName(manusWebhookEvents)).toBe("manus_webhook_events");
     expect(getTableName(manusAttachments)).toBe("manus_attachments");
     expect(getTableName(workspaceSettings)).toBe("workspace_settings");
+    expect(getTableName(workspaceChannels)).toBe("workspace_channels");
+    expect(getTableName(whatsappAuthKeys)).toBe("whatsapp_auth_keys");
   });
 
   it("defines expected enum values", () => {

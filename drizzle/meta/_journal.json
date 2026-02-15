@@ -22,6 +22,20 @@
       "when": 1771127970675,
       "tag": "0002_mysterious_wolf_cub",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1771150849550,
+      "tag": "0003_public_valkyrie",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1771155103784,
+      "tag": "0004_amazing_giant_girl",
+      "breakpoints": true
     }
   ]
 }

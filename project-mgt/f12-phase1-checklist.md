@@ -28,7 +28,7 @@ Date: 2026-02-15
 
 ## Deferred (Phase 2+)
 
-- [ ] `workspace_channels` table and channel management APIs/UI
-- [ ] WhatsApp browser pairing flow (SSE + QR)
+- [x] `workspace_channels` table and channel management APIs/UI (completed in Phase 2)
+- [x] WhatsApp browser pairing flow (SSE + QR) (completed in Phase 2)
 - [ ] Tunnel lifecycle management APIs/UI
 - [ ] Setup Guide and Status dashboard

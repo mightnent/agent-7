@@ -1,7 +1,7 @@
 # F12: Admin Console — Self-Service Setup, Channel Management & DB-Backed Config
 
 **Date**: 2026-02-15
-**Status**: Planning
+**Status**: In Progress (Phase 1 + Phase 2 complete; Phase 3 pending)
 **Depends on**: F11 Phase 1 (workspace scoping — complete)
 
 ## Problem Statement
@@ -439,13 +439,13 @@ src/app/
 | F12-5 | Build Config page (settings editor with category cards) | 1 | Complete |
 | F12-6 | Build settings API routes (GET/PUT by category) | 1 | Complete |
 | F12-7 | Refactor env.ts to use SettingsService with fallback | 1 | Complete |
-| F12-8 | Add `workspace_channels` table + migration | 2 | Pending |
-| F12-9 | Build WhatsApp pairing SSE endpoint + QR stream | 2 | Pending |
-| F12-10 | Build Channels page (pairing UI + bot config editor) | 2 | Pending |
-| F12-11 | Build WhatsApp API routes (pair, disconnect, status, groups, config) | 2 | Pending |
-| F12-12 | Modify Baileys bootstrap to read bot-config from DB | 2 | Pending |
-| F12-12b | Add `whatsapp_auth_keys` table + `useDbAuthState` adapter | 2 | Pending |
-| F12-12c | Filesystem-to-DB auth state migration script | 2 | Pending |
+| F12-8 | Add `workspace_channels` table + migration | 2 | Complete |
+| F12-9 | Build WhatsApp pairing SSE endpoint + QR stream | 2 | Complete |
+| F12-10 | Build Channels page (pairing UI + bot config editor) | 2 | Complete |
+| F12-11 | Build WhatsApp API routes (pair, disconnect, status, groups, config) | 2 | Complete |
+| F12-12 | Modify Baileys bootstrap to read bot-config from DB | 2 | Complete |
+| F12-12b | Add `whatsapp_auth_keys` table + `useDbAuthState` adapter | 2 | Complete |
+| F12-12c | Filesystem-to-DB auth state migration script | 2 | Complete |
 | F12-13 | Implement tunnel process manager (spawn/kill/monitor) | 3 | Pending |
 | F12-14 | Build Tunnel page + API routes (start/stop/status) | 3 | Pending |
 | F12-15 | Auto-register Manus webhook on tunnel URL capture | 3 | Pending |
@@ -456,7 +456,7 @@ src/app/
 
 1. **Encryption key management**: `DB_ENCRYPTION_KEY` must be 32 bytes (accepted formats: 64-char hex or base64 that decodes to 32 bytes). Document generation: `openssl rand -hex 32`.
 2. **No plaintext secrets in DB**: All `is_sensitive=true` values stored only in `encrypted_value`. The `value` column is NULL for sensitive settings.
-3. **API route protection**: In OSS mode, admin routes are unprotected (single-user assumption). In managed mode (F11 Phase 3+), routes require authenticated session + `settings.manage` permission.
+3. **API route protection**: In OSS mode, Phase 2 routes now enforce same-origin/loopback admin access guard. In managed mode (F11 Phase 3+), routes should be upgraded to authenticated session + permission checks.
 4. **Tunnel security**: The tunnel exposes the local server publicly. Document risks. Consider adding a toggle for "development only" warning.
 5. **SSE auth**: WhatsApp pairing SSE stream should validate the request comes from an authenticated session (managed mode) or same-origin (OSS mode).
 6. **Key rotation**: `key_version` column allows future rotation. Decrypt with old key, re-encrypt with new key, bump version.
@@ -475,9 +475,32 @@ No forced migration. No breaking changes. Fully backwards compatible.
 
 ## Resolved Decisions
 
-1. **Baileys auth state storage**: Keep filesystem in Phase 1. Move to DB in Phase 2 (see design below). Not hard — just a key-value adapter swap.
+1. **Baileys auth state storage**: DB-backed auth state is implemented in Phase 2 with filesystem fallback; migration script available.
 2. **Config caching TTL**: 30 seconds, no write-through invalidation. Keep it simple for now.
 3. **Tunnel alternatives**: Cloudflared only. No abstraction layer for other providers.
+
+## Phase 2 Implementation Notes (Completed)
+
+- Added `workspace_channels` and `whatsapp_auth_keys` schema + migrations.
+- Added browser-based WhatsApp pairing flow with SSE (`/api/channels/whatsapp/pair/stream`) and QR rendering in dashboard UI.
+- Added WhatsApp management API routes:
+  - `POST /api/channels/whatsapp/pair`
+  - `GET /api/channels/whatsapp/pair/stream`
+  - `POST /api/channels/whatsapp/disconnect`
+  - `GET /api/channels/whatsapp/status`
+  - `GET /api/channels/whatsapp/groups`
+  - `PUT /api/channels/whatsapp/config`
+- Added OSS admin guard for channel routes (same-origin or loopback requests).
+- Updated bootstrap to read bot config from DB first with filesystem fallback.
+- Added DB-backed auth state adapter and one-time filesystem-to-DB migration script (`npm run whatsapp:auth:migrate-db`).
+- Added pairing resilience improvements:
+  - Handle Baileys restart-required (`stream error 515`) by auto-reconnect in pairing flow.
+  - On logged-out auth state (`401`), clear stale auth state once and auto-retry pairing to reissue QR.
+- Added channel UI UX improvements:
+  - Explicit pairing loading state while waiting for QR.
+  - Main channel selection split into Self Chat vs Group mode.
+  - Phone-number input for self chat with fixed `@s.whatsapp.net` suffix.
+  - Registered groups default to read-only summary; editable checklist is shown only when expanding whitelist editor.
 
 ### Baileys Auth State — DB Migration Design (Phase 2)
 

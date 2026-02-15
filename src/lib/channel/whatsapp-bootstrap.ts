@@ -19,11 +19,11 @@
 
 import makeWASocket from "@whiskeysockets/baileys";
 import { makeCacheableSignalKeyStore } from "@whiskeysockets/baileys/lib/Utils/auth-utils.js";
-import { useMultiFileAuthState } from "@whiskeysockets/baileys/lib/Utils/use-multi-file-auth-state.js";
 import type { ConnectionState } from "@whiskeysockets/baileys/lib/Types/State.js";
 import type { BaileysEventMap } from "@whiskeysockets/baileys/lib/Types/Events.js";
 import pino from "pino";
 
+import { DEFAULT_WORKSPACE_ID } from "@/db/schema";
 import { getEnv } from "@/lib/env";
 import { createConnectorResolverFromEnv } from "@/lib/connectors/runtime";
 import { createManusClientFromEnv } from "@/lib/manus/client";
@@ -33,14 +33,16 @@ import { DrizzleTaskCreationStore } from "@/lib/orchestration/task-creation.stor
 import { DrizzleTaskRouterStore } from "@/lib/routing/task-router.store";
 import { createTaskRouterFromEnv } from "@/lib/routing/task-router-runtime";
 
-import { canonicalizeJid, loadBotConfig, shouldProcessMessage } from "./bot-config";
+import { canonicalizeJid, shouldProcessMessage } from "./bot-config";
 import type { BotConfig } from "./bot-config";
+import { loadWorkspaceBotConfig, updateWhatsAppChannelConnection } from "./workspace-channel-service";
 import { downloadBaileysMediaBuffer } from "./whatsapp-baileys";
 import { SlidingWindowRateLimiter } from "./rate-limiter";
 import { getRuntimeWhatsAppAdapter, setRuntimeWhatsAppAdapter } from "./runtime-adapter";
 import { BaileysWhatsAppAdapter } from "./whatsapp-adapter";
 import { createWhatsAppInboundHandler } from "./whatsapp-inbound";
 import { DrizzleWhatsAppInboundStore } from "./whatsapp-inbound.store";
+import { loadWorkspaceAuthState } from "./auth-state";
 
 const logger = pino({ level: "info" });
 const LOGGED_OUT_STATUS_CODE = 401;
@@ -53,6 +55,12 @@ interface BaileysGlobalState {
   socket: ReturnType<typeof makeWASocket> | null;
   connected: boolean;
   booted: boolean;
+  reconnectTimer: NodeJS.Timeout | null;
+  connectionHandler: ((update: Partial<ConnectionState>) => void) | null;
+  messageHandler:
+    | ((payload: BaileysEventMap["messages.upsert"]) => Promise<void>)
+    | null;
+  credsHandler: (() => Promise<void>) | null;
 }
 
 declare global {
@@ -61,7 +69,15 @@ declare global {
 
 const getGlobal = (): BaileysGlobalState => {
   if (!globalThis.__manus_whatsapp_baileys__) {
-    globalThis.__manus_whatsapp_baileys__ = { socket: null, connected: false, booted: false };
+    globalThis.__manus_whatsapp_baileys__ = {
+      socket: null,
+      connected: false,
+      booted: false,
+      reconnectTimer: null,
+      connectionHandler: null,
+      messageHandler: null,
+      credsHandler: null,
+    };
   }
   return globalThis.__manus_whatsapp_baileys__;
 };
@@ -104,7 +120,10 @@ export async function bootBaileys(): Promise<void> {
   const env = await getEnv();
 
   // --- Bot config ---
-  const botConfig: BotConfig | null = loadBotConfig(env.WHATSAPP_AUTH_DIR);
+  const botConfig: BotConfig | null = await loadWorkspaceBotConfig(
+    DEFAULT_WORKSPACE_ID,
+    env.WHATSAPP_AUTH_DIR,
+  );
 
   if (!botConfig) {
     logger.warn(
@@ -126,8 +145,11 @@ export async function bootBaileys(): Promise<void> {
   );
 
   // --- Auth ---
-  // eslint-disable-next-line react-hooks/rules-of-hooks -- Baileys utility, not a React hook
-  const { state: authState, saveCreds } = await useMultiFileAuthState(env.WHATSAPP_AUTH_DIR);
+  const { state: authState, saveCreds } = await loadWorkspaceAuthState({
+    workspaceId: DEFAULT_WORKSPACE_ID,
+    sessionName: env.WHATSAPP_SESSION_NAME,
+    authDir: env.WHATSAPP_AUTH_DIR,
+  });
 
   // --- Adapter ---
   const adapter = new BaileysWhatsAppAdapter({
@@ -159,6 +181,24 @@ export async function bootBaileys(): Promise<void> {
 
   // --- Connect ---
   const connect = (): void => {
+    if (state.reconnectTimer) {
+      clearTimeout(state.reconnectTimer);
+      state.reconnectTimer = null;
+    }
+
+    if (state.socket) {
+      if (state.credsHandler) {
+        state.socket.ev.off("creds.update", state.credsHandler);
+      }
+      if (state.connectionHandler) {
+        state.socket.ev.off("connection.update", state.connectionHandler);
+      }
+      if (state.messageHandler) {
+        state.socket.ev.off("messages.upsert", state.messageHandler);
+      }
+      state.socket.end(undefined);
+    }
+
     const socket = makeWASocket({
       auth: {
         creds: authState.creds,
@@ -170,15 +210,23 @@ export async function bootBaileys(): Promise<void> {
     state.socket = socket;
 
     // --- Credential persistence ---
-    socket.ev.on("creds.update", saveCreds);
+    state.credsHandler = saveCreds;
+    socket.ev.on("creds.update", state.credsHandler);
 
     // --- Connection lifecycle ---
-    socket.ev.on("connection.update", (update: Partial<ConnectionState>) => {
+    state.connectionHandler = (update: Partial<ConnectionState>) => {
       const { connection, lastDisconnect } = update;
 
       if (connection === "open") {
         state.connected = true;
         logger.info("WhatsApp connection established");
+        void updateWhatsAppChannelConnection({
+          workspaceId: DEFAULT_WORKSPACE_ID,
+          status: "connected",
+          phoneNumber: authState.creds.me?.id ?? null,
+          displayName: authState.creds.me?.name ?? null,
+          connectedAt: new Date(),
+        });
 
         // Populate LID → phone JID mapping from credentials
         const me = authState.creds.me;
@@ -201,6 +249,13 @@ export async function bootBaileys(): Promise<void> {
 
       if (connection === "close") {
         state.connected = false;
+        void updateWhatsAppChannelConnection({
+          workspaceId: DEFAULT_WORKSPACE_ID,
+          status: "disconnected",
+          connectedAt: null,
+          phoneNumber: null,
+          displayName: null,
+        });
         const statusCode = (lastDisconnect?.error as { output?: { statusCode?: number } })?.output
           ?.statusCode;
         const loggedOut = statusCode === LOGGED_OUT_STATUS_CODE;
@@ -211,12 +266,13 @@ export async function bootBaileys(): Promise<void> {
         }
 
         logger.info({ statusCode }, "WhatsApp disconnected, reconnecting...");
-        setTimeout(connect, 3_000);
+        state.reconnectTimer = setTimeout(connect, 3_000);
       }
-    });
+    };
+    socket.ev.on("connection.update", state.connectionHandler);
 
     // --- Inbound messages ---
-    socket.ev.on("messages.upsert", async ({ messages: inboundMessages, type }: BaileysEventMap["messages.upsert"]) => {
+    state.messageHandler = async ({ messages: inboundMessages, type }: BaileysEventMap["messages.upsert"]) => {
       if (type !== "notify" && type !== "append") {
         return;
       }
@@ -298,12 +354,59 @@ export async function bootBaileys(): Promise<void> {
           );
         }
       }
-    });
+    };
+    socket.ev.on("messages.upsert", state.messageHandler);
   };
 
   logger.info({ authDir: env.WHATSAPP_AUTH_DIR }, "Booting Baileys WhatsApp connection...");
   connect();
 }
+
+export const getBaileysRuntimeState = (): { connected: boolean; booted: boolean } => {
+  const state = getGlobal();
+  return {
+    connected: state.connected,
+    booted: state.booted,
+  };
+};
+
+export const getBaileysRuntimeSocket = (): ReturnType<typeof makeWASocket> | null => {
+  return getGlobal().socket;
+};
+
+export const disconnectBaileysRuntime = async (): Promise<void> => {
+  const state = getGlobal();
+  if (state.reconnectTimer) {
+    clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = null;
+  }
+  if (!state.socket) {
+    return;
+  }
+
+  if (state.credsHandler) {
+    state.socket.ev.off("creds.update", state.credsHandler);
+  }
+  if (state.connectionHandler) {
+    state.socket.ev.off("connection.update", state.connectionHandler);
+  }
+  if (state.messageHandler) {
+    state.socket.ev.off("messages.upsert", state.messageHandler);
+  }
+
+  try {
+    await state.socket.logout();
+  } catch {
+    // no-op
+  }
+
+  state.socket.end(undefined);
+  state.socket = null;
+  state.connectionHandler = null;
+  state.messageHandler = null;
+  state.credsHandler = null;
+  state.connected = false;
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
