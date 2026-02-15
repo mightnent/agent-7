@@ -17,12 +17,11 @@
  * Uses globalThis to survive Next.js dev-mode hot reloads.
  */
 
-import {
-  DisconnectReason,
-  makeCacheableSignalKeyStore,
-  makeWASocket,
-  useMultiFileAuthState,
-} from "@whiskeysockets/baileys";
+import makeWASocket from "@whiskeysockets/baileys";
+import { makeCacheableSignalKeyStore } from "@whiskeysockets/baileys/lib/Utils/auth-utils.js";
+import { useMultiFileAuthState } from "@whiskeysockets/baileys/lib/Utils/use-multi-file-auth-state.js";
+import type { ConnectionState } from "@whiskeysockets/baileys/lib/Types/State.js";
+import type { BaileysEventMap } from "@whiskeysockets/baileys/lib/Types/Events.js";
 import pino from "pino";
 
 import { getEnv } from "@/lib/env";
@@ -44,6 +43,7 @@ import { createWhatsAppInboundHandler } from "./whatsapp-inbound";
 import { DrizzleWhatsAppInboundStore } from "./whatsapp-inbound.store";
 
 const logger = pino({ level: "info" });
+const LOGGED_OUT_STATUS_CODE = 401;
 
 // ---------------------------------------------------------------------------
 // globalThis singleton to survive Next.js dev-mode hot reloads
@@ -173,7 +173,7 @@ export async function bootBaileys(): Promise<void> {
     socket.ev.on("creds.update", saveCreds);
 
     // --- Connection lifecycle ---
-    socket.ev.on("connection.update", (update) => {
+    socket.ev.on("connection.update", (update: Partial<ConnectionState>) => {
       const { connection, lastDisconnect } = update;
 
       if (connection === "open") {
@@ -203,7 +203,7 @@ export async function bootBaileys(): Promise<void> {
         state.connected = false;
         const statusCode = (lastDisconnect?.error as { output?: { statusCode?: number } })?.output
           ?.statusCode;
-        const loggedOut = statusCode === DisconnectReason.loggedOut;
+        const loggedOut = statusCode === LOGGED_OUT_STATUS_CODE;
 
         if (loggedOut) {
           logger.warn("WhatsApp logged out — run `npm run whatsapp:auth` to re-pair");
@@ -216,7 +216,7 @@ export async function bootBaileys(): Promise<void> {
     });
 
     // --- Inbound messages ---
-    socket.ev.on("messages.upsert", async ({ messages: inboundMessages, type }) => {
+    socket.ev.on("messages.upsert", async ({ messages: inboundMessages, type }: BaileysEventMap["messages.upsert"]) => {
       if (type !== "notify" && type !== "append") {
         return;
       }

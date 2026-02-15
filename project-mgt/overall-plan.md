@@ -2,9 +2,9 @@
 
 ## 0) Execution State (Jira-Style)
 
-Last updated: 2026-02-14
-Current release gate: **F9 Runtime Stabilization + Webhook Delivery**
-Status: **F1-F8 complete; F9 stabilization fixes completed (routing fallback, webhook registration flow, runtime adapter reliability, stale-task handling)**
+Last updated: 2026-02-15
+Current release gate: **F11 Phase 1 OSS Workspace Scoping**
+Status: **F1-F9 complete; F11 Phase 1 OSS complete (workspace-scoped schema + default tenant), managed authn/authz pending**
 
 ### Release Log
 
@@ -19,6 +19,7 @@ Status: **F1-F8 complete; F9 stabilization fixes completed (routing fallback, we
 | F7 | Baileys bootstrap + integration tests | ✅ Done | Instrumentation wiring + 5 integration tests against Neon |
 | F8 | Decouple WhatsApp setup + chat targeting | 🔧 In Progress | Separate auth/setup CLIs, bot-config.json, message filtering with name/mention triggers. See `f8-whatsapp-setup-chat-targeting.md` |
 | F9 | Runtime stabilization + webhook delivery reliability | ✅ Done | Routing fallback on classifier/continue failures, webhook registration script + callback path hardening, global runtime adapter + bootstrap recovery, outbound chunking, provider-verified stale cleanup. See `f9-runtime-stabilization-webhook-delivery.md` |
+| F11 | OSS core + managed SaaS authn/authz (multi-user enterprise) | ✅ OSS Phase 1 Complete | Workspace-scoped schema shipped for OSS (`workspaces` + `workspace_id` across domain tables), default workspace seeding/backfill migration generated, and store-layer scoping wired. Managed authn/authz phases remain planned. See `f11-oss-managed-multi-tenant-auth.md` |
 
 ### Work Items
 
@@ -45,8 +46,9 @@ Status: **F1-F8 complete; F9 stabilization fixes completed (routing fallback, we
 | MWA-19 | Add Baileys bootstrap via Next.js instrumentation | ✅ Done | `src/instrumentation.ts` + `src/lib/channel/whatsapp-bootstrap.ts` — boots Baileys on server start, wires inbound → dispatch → Manus, registers runtime adapter |
 | MWA-20 | Add integration tests against real Neon DB | ✅ Done | `src/integration/full-flow.integration.test.ts` — 5 scenarios: full finish, ask/continue, webhook idempotency, inbound dedupe, session upsert |
 | MWA-21 | Externalize Baileys from Next.js bundler | ✅ Done | `serverExternalPackages` in `next.config.ts` for `@whiskeysockets/baileys` + `pino` |
+| MWA-22 | Implement F11 Phase 1 OSS workspace scoping | ✅ Done | Added `workspaces` table + seeded default workspace, added `workspace_id` to domain tables + indexes, generated migration `drizzle/0001_nice_miss_america.sql`, updated stores to use default workspace scope |
 
-### Post-F7 Backlog (Non-Blocking)
+### Post-F9 Backlog (Non-Blocking)
 
 1. **Webhook handler/route convergence**
    - `handleManusWebhook` currently represents a synchronous flow while the route uses async `after()` processing.
@@ -54,6 +56,9 @@ Status: **F1-F8 complete; F9 stabilization fixes completed (routing fallback, we
 2. **Split internal auth tokens**
    - `INTERNAL_CLEANUP_TOKEN` currently gates cleanup and read APIs.
    - Introduce a separate read-only token if operational access boundaries are needed.
+3. **F11 managed authn/authz follow-up**
+   - Implement F11 Phase 2+ (principals, memberships, permissions, API keys, Cognito session flows).
+   - Keep OSS mode auth-optional while introducing managed policy enforcement.
 
 ### Feature 1 QA Test Cases
 

@@ -1,7 +1,7 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { channelSessions, manusTasks, messages } from "@/db/schema";
+import { DEFAULT_WORKSPACE_ID, channelSessions, manusTasks, messages } from "@/db/schema";
 
 export interface SessionView {
   id: string;
@@ -62,7 +62,7 @@ export class DrizzleReadApiStore {
         createdAt: channelSessions.createdAt,
       })
       .from(channelSessions)
-      .where(eq(channelSessions.id, sessionId))
+      .where(and(eq(channelSessions.workspaceId, DEFAULT_WORKSPACE_ID), eq(channelSessions.id, sessionId)))
       .limit(1);
 
     const session = sessionRows[0];
@@ -78,7 +78,7 @@ export class DrizzleReadApiStore {
         updatedAt: manusTasks.updatedAt,
       })
       .from(manusTasks)
-      .where(eq(manusTasks.sessionId, session.id))
+      .where(and(eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID), eq(manusTasks.sessionId, session.id)))
       .orderBy(desc(manusTasks.updatedAt))
       .limit(20);
 
@@ -91,7 +91,7 @@ export class DrizzleReadApiStore {
         createdAt: messages.createdAt,
       })
       .from(messages)
-      .where(eq(messages.sessionId, session.id))
+      .where(and(eq(messages.workspaceId, DEFAULT_WORKSPACE_ID), eq(messages.sessionId, session.id)))
       .orderBy(desc(messages.createdAt))
       .limit(50);
 
@@ -117,7 +117,7 @@ export class DrizzleReadApiStore {
         stoppedAt: manusTasks.stoppedAt,
       })
       .from(manusTasks)
-      .where(eq(manusTasks.taskId, taskId))
+      .where(and(eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID), eq(manusTasks.taskId, taskId)))
       .limit(1);
 
     const task = taskRows[0];
@@ -133,7 +133,7 @@ export class DrizzleReadApiStore {
         createdAt: messages.createdAt,
       })
       .from(messages)
-      .where(eq(messages.manusTaskId, task.id))
+      .where(and(eq(messages.workspaceId, DEFAULT_WORKSPACE_ID), eq(messages.manusTaskId, task.id)))
       .orderBy(desc(messages.createdAt))
       .limit(100);
 

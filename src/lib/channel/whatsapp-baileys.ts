@@ -1,4 +1,4 @@
-import { downloadMediaMessage } from "@whiskeysockets/baileys";
+import { downloadMediaMessage } from "@whiskeysockets/baileys/lib/Utils/messages.js";
 
 import type { BaileysInboundMessageLike } from "./whatsapp-types";
 

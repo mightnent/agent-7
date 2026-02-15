@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { channelSessions, manusAttachments, manusTasks, manusWebhookEvents, messages } from "@/db/schema";
+import { DEFAULT_WORKSPACE_ID, channelSessions, manusAttachments, manusTasks, manusWebhookEvents, messages } from "@/db/schema";
 
 export interface InsertWebhookEventInput {
   eventId: string;
@@ -77,6 +77,7 @@ export class DrizzleEventProcessorStore implements EventProcessorStore, WebhookE
     const rows = await this.database
       .insert(manusWebhookEvents)
       .values({
+        workspaceId: DEFAULT_WORKSPACE_ID,
         eventId: input.eventId,
         eventType: input.eventType,
         taskId: input.taskId,
@@ -103,7 +104,7 @@ export class DrizzleEventProcessorStore implements EventProcessorStore, WebhookE
         processedAt,
         error: null,
       })
-      .where(eq(manusWebhookEvents.eventId, eventId));
+      .where(and(eq(manusWebhookEvents.workspaceId, DEFAULT_WORKSPACE_ID), eq(manusWebhookEvents.eventId, eventId)));
   }
 
   async markWebhookEventFailed(eventId: string, processedAt: Date, error: string): Promise<void> {
@@ -114,7 +115,7 @@ export class DrizzleEventProcessorStore implements EventProcessorStore, WebhookE
         processedAt,
         error,
       })
-      .where(eq(manusWebhookEvents.eventId, eventId));
+      .where(and(eq(manusWebhookEvents.workspaceId, DEFAULT_WORKSPACE_ID), eq(manusWebhookEvents.eventId, eventId)));
   }
 
   async getTaskDeliveryContext(taskId: string): Promise<TaskDeliveryContext | null> {
@@ -125,7 +126,7 @@ export class DrizzleEventProcessorStore implements EventProcessorStore, WebhookE
       })
       .from(manusTasks)
       .innerJoin(channelSessions, eq(channelSessions.id, manusTasks.sessionId))
-      .where(eq(manusTasks.taskId, taskId))
+      .where(and(eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID), eq(manusTasks.taskId, taskId)))
       .limit(1);
 
     return rows[0] ?? null;
@@ -135,7 +136,7 @@ export class DrizzleEventProcessorStore implements EventProcessorStore, WebhookE
     const rows = await this.database
       .select({ status: manusTasks.status })
       .from(manusTasks)
-      .where(eq(manusTasks.taskId, taskId))
+      .where(and(eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID), eq(manusTasks.taskId, taskId)))
       .limit(1);
 
     return rows[0]?.status ?? null;
@@ -155,7 +156,7 @@ export class DrizzleEventProcessorStore implements EventProcessorStore, WebhookE
         taskUrl: input.taskUrl,
         updatedAt: input.updatedAt,
       })
-      .where(eq(manusTasks.taskId, input.taskId));
+      .where(and(eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID), eq(manusTasks.taskId, input.taskId)));
   }
 
   async updateTaskFromProgress(input: { taskId: string; message: string | null; updatedAt: Date }): Promise<void> {
@@ -166,7 +167,7 @@ export class DrizzleEventProcessorStore implements EventProcessorStore, WebhookE
         lastMessage: input.message,
         updatedAt: input.updatedAt,
       })
-      .where(eq(manusTasks.taskId, input.taskId));
+      .where(and(eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID), eq(manusTasks.taskId, input.taskId)));
   }
 
   async updateTaskFromStoppedFinish(input: {
@@ -188,7 +189,7 @@ export class DrizzleEventProcessorStore implements EventProcessorStore, WebhookE
         updatedAt: input.updatedAt,
         stoppedAt: input.stoppedAt,
       })
-      .where(eq(manusTasks.taskId, input.taskId));
+      .where(and(eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID), eq(manusTasks.taskId, input.taskId)));
   }
 
   async updateTaskFromStoppedAsk(input: {
@@ -208,13 +209,14 @@ export class DrizzleEventProcessorStore implements EventProcessorStore, WebhookE
         lastMessage: input.message,
         updatedAt: input.updatedAt,
       })
-      .where(eq(manusTasks.taskId, input.taskId));
+      .where(and(eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID), eq(manusTasks.taskId, input.taskId)));
   }
 
   async createOutboundMessage(input: CreateOutboundMessageInput): Promise<string> {
     const rows = await this.database
       .insert(messages)
       .values({
+        workspaceId: DEFAULT_WORKSPACE_ID,
         sessionId: input.sessionId,
         direction: "outbound",
         channelMessageId: null,
@@ -244,6 +246,7 @@ export class DrizzleEventProcessorStore implements EventProcessorStore, WebhookE
 
     await this.database.insert(manusAttachments).values(
       input.map((attachment) => ({
+        workspaceId: DEFAULT_WORKSPACE_ID,
         taskId: attachment.taskId,
         eventId: attachment.eventId,
         fileName: attachment.fileName,
@@ -263,6 +266,12 @@ export class DrizzleEventProcessorStore implements EventProcessorStore, WebhookE
         status: "running",
         updatedAt,
       })
-      .where(and(eq(manusTasks.taskId, taskId), eq(manusTasks.status, "waiting_user")));
+      .where(
+        and(
+          eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID),
+          eq(manusTasks.taskId, taskId),
+          eq(manusTasks.status, "waiting_user"),
+        ),
+      );
   }
 }

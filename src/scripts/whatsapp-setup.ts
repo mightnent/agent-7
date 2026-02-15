@@ -17,17 +17,16 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as readline from "node:readline";
 
-import {
-  makeCacheableSignalKeyStore,
-  makeWASocket,
-  useMultiFileAuthState,
-  DisconnectReason,
-} from "@whiskeysockets/baileys";
+import makeWASocket from "@whiskeysockets/baileys";
+import { makeCacheableSignalKeyStore } from "@whiskeysockets/baileys/lib/Utils/auth-utils.js";
+import { useMultiFileAuthState } from "@whiskeysockets/baileys/lib/Utils/use-multi-file-auth-state.js";
+import type { ConnectionState } from "@whiskeysockets/baileys/lib/Types/State.js";
 import pino from "pino";
 
 const AUTH_DIR = process.env.WHATSAPP_AUTH_DIR ?? "./.data/whatsapp-auth";
 const CONFIG_FILE = path.join(AUTH_DIR, "bot-config.json");
 const logger = pino({ level: "warn" });
+const LOGGED_OUT_STATUS_CODE = 401;
 
 // ---------------------------------------------------------------------------
 // Readline helpers
@@ -111,14 +110,14 @@ async function main(): Promise<void> {
 
   // Wait for connection to open
   await new Promise<void>((resolve, reject) => {
-    socket.ev.on("connection.update", (update) => {
+    socket.ev.on("connection.update", (update: Partial<ConnectionState>) => {
       if (update.connection === "open") {
         resolve();
       }
       if (update.connection === "close") {
         const statusCode = (update.lastDisconnect?.error as { output?: { statusCode?: number } })
           ?.output?.statusCode;
-        if (statusCode === DisconnectReason.loggedOut) {
+        if (statusCode === LOGGED_OUT_STATUS_CODE) {
           reject(new Error("Logged out. Run `npm run whatsapp:auth` to re-pair."));
         }
         // Otherwise Baileys will retry automatically
@@ -130,7 +129,7 @@ async function main(): Promise<void> {
 
   // --- Fetch groups ---
   console.log("Fetching group list...");
-  const groups = await socket.groupFetchAllParticipating();
+  const groups = (await socket.groupFetchAllParticipating()) as Record<string, { subject?: string }>;
   const groupEntries = Object.entries(groups).map(([jid, meta]) => ({
     jid,
     name: meta.subject || jid,

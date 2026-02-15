@@ -18,17 +18,16 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import {
-  DisconnectReason,
-  makeCacheableSignalKeyStore,
-  makeWASocket,
-  useMultiFileAuthState,
-} from "@whiskeysockets/baileys";
+import makeWASocket from "@whiskeysockets/baileys";
+import { makeCacheableSignalKeyStore } from "@whiskeysockets/baileys/lib/Utils/auth-utils.js";
+import { useMultiFileAuthState } from "@whiskeysockets/baileys/lib/Utils/use-multi-file-auth-state.js";
+import type { ConnectionState } from "@whiskeysockets/baileys/lib/Types/State.js";
 import pino from "pino";
 import qrcodeTerminal from "qrcode-terminal";
 
 const AUTH_DIR = process.env.WHATSAPP_AUTH_DIR ?? "./.data/whatsapp-auth";
 const logger = pino({ level: "info" });
+const LOGGED_OUT_STATUS_CODE = 401;
 
 /**
  * Remove all Baileys credential files from the auth directory while
@@ -61,7 +60,7 @@ async function main(): Promise<void> {
 
     socket.ev.on("creds.update", saveCreds);
 
-    socket.ev.on("connection.update", async (update) => {
+    socket.ev.on("connection.update", async (update: Partial<ConnectionState>) => {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
@@ -80,7 +79,7 @@ async function main(): Promise<void> {
         const statusCode = (lastDisconnect?.error as { output?: { statusCode?: number } })?.output
           ?.statusCode;
 
-        if (statusCode === DisconnectReason.loggedOut) {
+        if (statusCode === LOGGED_OUT_STATUS_CODE) {
           console.log("Stale credentials detected — clearing auth state and retrying...\n");
           clearAuthState(AUTH_DIR);
 

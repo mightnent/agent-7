@@ -1,7 +1,7 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { manusTasks, messages } from "@/db/schema";
+import { DEFAULT_WORKSPACE_ID, manusTasks, messages } from "@/db/schema";
 
 export interface CreateTaskRecordInput {
   sessionId: string;
@@ -41,6 +41,7 @@ export class DrizzleTaskCreationStore implements TaskCreationStore {
 
   async createTaskRecord(input: CreateTaskRecordInput): Promise<void> {
     await this.database.insert(manusTasks).values({
+      workspaceId: DEFAULT_WORKSPACE_ID,
       sessionId: input.sessionId,
       taskId: input.taskId,
       status: "pending",
@@ -66,7 +67,7 @@ export class DrizzleTaskCreationStore implements TaskCreationStore {
         routeAction: "new",
         routeReason: input.routeReason,
       })
-      .where(eq(messages.id, input.messageId))
+      .where(and(eq(messages.id, input.messageId), eq(messages.workspaceId, DEFAULT_WORKSPACE_ID)))
       .returning({ id: messages.id });
 
     if (!rows[0]) {
@@ -78,6 +79,7 @@ export class DrizzleTaskCreationStore implements TaskCreationStore {
     const rows = await this.database
       .insert(messages)
       .values({
+        workspaceId: DEFAULT_WORKSPACE_ID,
         sessionId: input.sessionId,
         direction: "outbound",
         channelMessageId: null,

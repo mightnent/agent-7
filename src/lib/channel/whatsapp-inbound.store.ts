@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { channelSessions, messages } from "@/db/schema";
+import { DEFAULT_WORKSPACE_ID, channelSessions, messages } from "@/db/schema";
 
 export interface UpsertSessionInput {
   channelUserId: string;
@@ -42,7 +42,7 @@ export class DrizzleWhatsAppInboundStore implements WhatsAppInboundStore {
     const existing = await this.database
       .select({ id: messages.id })
       .from(messages)
-      .where(eq(messages.channelMessageId, channelMessageId))
+      .where(and(eq(messages.workspaceId, DEFAULT_WORKSPACE_ID), eq(messages.channelMessageId, channelMessageId)))
       .limit(1);
 
     return existing.length > 0;
@@ -52,6 +52,7 @@ export class DrizzleWhatsAppInboundStore implements WhatsAppInboundStore {
     const rows = await this.database
       .insert(channelSessions)
       .values({
+        workspaceId: DEFAULT_WORKSPACE_ID,
         channel: "whatsapp",
         channelUserId: input.channelUserId,
         channelChatId: input.channelChatId,
@@ -61,7 +62,7 @@ export class DrizzleWhatsAppInboundStore implements WhatsAppInboundStore {
         expiresAt: input.expiresAt,
       })
       .onConflictDoUpdate({
-        target: [channelSessions.channel, channelSessions.channelChatId, channelSessions.channelUserId],
+        target: [channelSessions.workspaceId, channelSessions.channel, channelSessions.channelChatId, channelSessions.channelUserId],
         set: {
           status: "active",
           lastActivityAt: input.lastActivityAt,
@@ -83,6 +84,7 @@ export class DrizzleWhatsAppInboundStore implements WhatsAppInboundStore {
     const rows = await this.database
       .insert(messages)
       .values({
+        workspaceId: DEFAULT_WORKSPACE_ID,
         sessionId: input.sessionId,
         direction: "inbound",
         channelMessageId: input.channelMessageId,
@@ -108,6 +110,7 @@ export class DrizzleWhatsAppInboundStore implements WhatsAppInboundStore {
       .from(channelSessions)
       .where(
         and(
+          eq(channelSessions.workspaceId, DEFAULT_WORKSPACE_ID),
           eq(channelSessions.channel, "whatsapp"),
           eq(channelSessions.channelUserId, channelUserId),
           eq(channelSessions.channelChatId, channelChatId),

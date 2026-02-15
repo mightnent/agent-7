@@ -25,11 +25,26 @@ export const webhookProcessStatusEnum = pgEnum("webhook_process_status", [
   "ignored",
   "failed",
 ]);
+export const DEFAULT_WORKSPACE_ID = "00000000-0000-0000-0000-000000000000";
+
+export const workspaces = pgTable("workspaces", {
+  id: uuid("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  planTier: text("plan_tier").notNull().default("oss"),
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const channelSessions = pgTable(
   "channel_sessions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .default(sql.raw(`'${DEFAULT_WORKSPACE_ID}'::uuid`))
+      .references(() => workspaces.id, { onDelete: "restrict" }),
     channel: channelEnum("channel").notNull().default("whatsapp"),
     channelUserId: text("channel_user_id").notNull(),
     channelChatId: text("channel_chat_id").notNull(),
@@ -40,7 +55,12 @@ export const channelSessions = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
   (t) => [
-    uniqueIndex("channel_sessions_channel_chat_user_unique").on(t.channel, t.channelChatId, t.channelUserId),
+    uniqueIndex("channel_sessions_workspace_channel_chat_user_unique").on(
+      t.workspaceId,
+      t.channel,
+      t.channelChatId,
+      t.channelUserId,
+    ),
     index("channel_sessions_expires_at_idx").on(t.expiresAt),
   ],
 );
@@ -49,6 +69,10 @@ export const messages = pgTable(
   "messages",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .default(sql.raw(`'${DEFAULT_WORKSPACE_ID}'::uuid`))
+      .references(() => workspaces.id, { onDelete: "restrict" }),
     sessionId: uuid("session_id")
       .notNull()
       .references(() => channelSessions.id, { onDelete: "cascade" }),
@@ -64,6 +88,7 @@ export const messages = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
   (t) => [
+    index("messages_workspace_session_created_at_idx").on(t.workspaceId, t.sessionId, t.createdAt),
     index("messages_session_created_at_idx").on(t.sessionId, t.createdAt),
     uniqueIndex("messages_channel_message_id_unique")
       .on(t.channelMessageId)
@@ -77,6 +102,10 @@ export const manusTasks = pgTable(
   "manus_tasks",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .default(sql.raw(`'${DEFAULT_WORKSPACE_ID}'::uuid`))
+      .references(() => workspaces.id, { onDelete: "restrict" }),
     sessionId: uuid("session_id")
       .notNull()
       .references(() => channelSessions.id, { onDelete: "cascade" }),
@@ -97,6 +126,7 @@ export const manusTasks = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
   (t) => [
+    index("manus_tasks_workspace_status_updated_at_idx").on(t.workspaceId, t.status, t.updatedAt),
     index("manus_tasks_session_created_at_idx").on(t.sessionId, t.createdAt),
     index("manus_tasks_status_updated_at_idx").on(t.status, t.updatedAt),
     index("manus_tasks_expires_at_idx").on(t.expiresAt),
@@ -107,6 +137,10 @@ export const manusWebhookEvents = pgTable(
   "manus_webhook_events",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .default(sql.raw(`'${DEFAULT_WORKSPACE_ID}'::uuid`))
+      .references(() => workspaces.id, { onDelete: "restrict" }),
     eventId: text("event_id").notNull().unique(),
     eventType: webhookEventTypeEnum("event_type").notNull(),
     taskId: text("task_id").notNull(),
@@ -120,6 +154,7 @@ export const manusWebhookEvents = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
   (t) => [
+    index("manus_webhook_events_workspace_task_received_idx").on(t.workspaceId, t.taskId, t.receivedAt),
     index("manus_webhook_events_task_received_idx").on(t.taskId, t.receivedAt),
     index("manus_webhook_events_status_received_idx").on(t.processStatus, t.receivedAt),
     index("manus_webhook_events_expires_at_idx").on(t.expiresAt),
@@ -130,6 +165,10 @@ export const manusAttachments = pgTable(
   "manus_attachments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .default(sql.raw(`'${DEFAULT_WORKSPACE_ID}'::uuid`))
+      .references(() => workspaces.id, { onDelete: "restrict" }),
     taskId: text("task_id").notNull(),
     eventId: text("event_id")
       .notNull()
@@ -141,5 +180,9 @@ export const manusAttachments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
-  (t) => [index("manus_attachments_task_id_idx").on(t.taskId), index("manus_attachments_expires_at_idx").on(t.expiresAt)],
+  (t) => [
+    index("manus_attachments_workspace_task_id_idx").on(t.workspaceId, t.taskId),
+    index("manus_attachments_task_id_idx").on(t.taskId),
+    index("manus_attachments_expires_at_idx").on(t.expiresAt),
+  ],
 );

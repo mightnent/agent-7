@@ -12,11 +12,13 @@ import {
   stopReasonEnum,
   taskStatusEnum,
   webhookEventTypeEnum,
+  workspaces,
 } from "./schema";
 
 describe("db schema", () => {
   it("defines the expected table names", () => {
     expect(getTableName(channelSessions)).toBe("channel_sessions");
+    expect(getTableName(workspaces)).toBe("workspaces");
     expect(getTableName(messages)).toBe("messages");
     expect(getTableName(manusTasks)).toBe("manus_tasks");
     expect(getTableName(manusWebhookEvents)).toBe("manus_webhook_events");

@@ -1,7 +1,7 @@
 import { and, eq, gt, inArray, lt } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { channelSessions, manusAttachments, manusTasks, manusWebhookEvents, messages } from "@/db/schema";
+import { DEFAULT_WORKSPACE_ID, channelSessions, manusAttachments, manusTasks, manusWebhookEvents, messages } from "@/db/schema";
 
 export type ExpirableTable = "channel_sessions" | "messages" | "manus_tasks" | "manus_webhook_events" | "manus_attachments";
 
@@ -46,9 +46,16 @@ export class DrizzleCleanupStore implements CleanupStore {
 
   async deleteExpiredRows(table: ExpirableTable, now: Date, batchSize: number): Promise<number> {
     if (table === "messages") {
-      const ids = await this.database.select({ id: messages.id }).from(messages).where(lt(messages.expiresAt, now)).limit(batchSize);
+      const ids = await this.database
+        .select({ id: messages.id })
+        .from(messages)
+        .where(and(eq(messages.workspaceId, DEFAULT_WORKSPACE_ID), lt(messages.expiresAt, now)))
+        .limit(batchSize);
       if (ids.length === 0) return 0;
-      const deleted = await this.database.delete(messages).where(inArray(messages.id, ids.map((row) => row.id))).returning({ id: messages.id });
+      const deleted = await this.database
+        .delete(messages)
+        .where(and(eq(messages.workspaceId, DEFAULT_WORKSPACE_ID), inArray(messages.id, ids.map((row) => row.id))))
+        .returning({ id: messages.id });
       return deleted.length;
     }
 
@@ -56,12 +63,12 @@ export class DrizzleCleanupStore implements CleanupStore {
       const ids = await this.database
         .select({ id: manusAttachments.id })
         .from(manusAttachments)
-        .where(lt(manusAttachments.expiresAt, now))
+        .where(and(eq(manusAttachments.workspaceId, DEFAULT_WORKSPACE_ID), lt(manusAttachments.expiresAt, now)))
         .limit(batchSize);
       if (ids.length === 0) return 0;
       const deleted = await this.database
         .delete(manusAttachments)
-        .where(inArray(manusAttachments.id, ids.map((row) => row.id)))
+        .where(and(eq(manusAttachments.workspaceId, DEFAULT_WORKSPACE_ID), inArray(manusAttachments.id, ids.map((row) => row.id))))
         .returning({ id: manusAttachments.id });
       return deleted.length;
     }
@@ -70,34 +77,41 @@ export class DrizzleCleanupStore implements CleanupStore {
       const ids = await this.database
         .select({ id: manusWebhookEvents.id })
         .from(manusWebhookEvents)
-        .where(lt(manusWebhookEvents.expiresAt, now))
+        .where(and(eq(manusWebhookEvents.workspaceId, DEFAULT_WORKSPACE_ID), lt(manusWebhookEvents.expiresAt, now)))
         .limit(batchSize);
       if (ids.length === 0) return 0;
       const deleted = await this.database
         .delete(manusWebhookEvents)
-        .where(inArray(manusWebhookEvents.id, ids.map((row) => row.id)))
+        .where(and(eq(manusWebhookEvents.workspaceId, DEFAULT_WORKSPACE_ID), inArray(manusWebhookEvents.id, ids.map((row) => row.id))))
         .returning({ id: manusWebhookEvents.id });
       return deleted.length;
     }
 
     if (table === "manus_tasks") {
-      const ids = await this.database.select({ id: manusTasks.id }).from(manusTasks).where(lt(manusTasks.expiresAt, now)).limit(batchSize);
+      const ids = await this.database
+        .select({ id: manusTasks.id })
+        .from(manusTasks)
+        .where(and(eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID), lt(manusTasks.expiresAt, now)))
+        .limit(batchSize);
       if (ids.length === 0) return 0;
-      const deleted = await this.database.delete(manusTasks).where(inArray(manusTasks.id, ids.map((row) => row.id))).returning({ id: manusTasks.id });
+      const deleted = await this.database
+        .delete(manusTasks)
+        .where(and(eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID), inArray(manusTasks.id, ids.map((row) => row.id))))
+        .returning({ id: manusTasks.id });
       return deleted.length;
     }
 
     const ids = await this.database
       .select({ id: channelSessions.id })
       .from(channelSessions)
-      .where(lt(channelSessions.expiresAt, now))
+      .where(and(eq(channelSessions.workspaceId, DEFAULT_WORKSPACE_ID), lt(channelSessions.expiresAt, now)))
       .limit(batchSize);
 
     if (ids.length === 0) return 0;
 
     const deleted = await this.database
       .delete(channelSessions)
-      .where(inArray(channelSessions.id, ids.map((row) => row.id)))
+      .where(and(eq(channelSessions.workspaceId, DEFAULT_WORKSPACE_ID), inArray(channelSessions.id, ids.map((row) => row.id))))
       .returning({ id: channelSessions.id });
 
     return deleted.length;
@@ -113,7 +127,14 @@ export class DrizzleCleanupStore implements CleanupStore {
       })
       .from(manusTasks)
       .innerJoin(channelSessions, eq(channelSessions.id, manusTasks.sessionId))
-      .where(and(inArray(manusTasks.status, ["pending", "running"]), lt(manusTasks.updatedAt, cutoff)));
+      .where(
+        and(
+          eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID),
+          eq(channelSessions.workspaceId, DEFAULT_WORKSPACE_ID),
+          inArray(manusTasks.status, ["pending", "running"]),
+          lt(manusTasks.updatedAt, cutoff),
+        ),
+      );
 
     return rows;
   }
@@ -124,6 +145,7 @@ export class DrizzleCleanupStore implements CleanupStore {
       .from(manusWebhookEvents)
       .where(
         and(
+          eq(manusWebhookEvents.workspaceId, DEFAULT_WORKSPACE_ID),
           eq(manusWebhookEvents.taskId, taskId),
           inArray(manusWebhookEvents.processStatus, ["pending", "processed"]),
           gt(manusWebhookEvents.receivedAt, since),
@@ -140,7 +162,13 @@ export class DrizzleCleanupStore implements CleanupStore {
       .set({
         updatedAt: now,
       })
-      .where(and(eq(manusTasks.taskId, taskId), inArray(manusTasks.status, ["pending", "running"])))
+      .where(
+        and(
+          eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID),
+          eq(manusTasks.taskId, taskId),
+          inArray(manusTasks.status, ["pending", "running"]),
+        ),
+      )
       .returning({ id: manusTasks.id });
 
     return Boolean(rows[0]);
@@ -161,7 +189,13 @@ export class DrizzleCleanupStore implements CleanupStore {
         updatedAt: input.now,
         stoppedAt: input.now,
       })
-      .where(and(eq(manusTasks.taskId, input.taskId), inArray(manusTasks.status, ["pending", "running"])))
+      .where(
+        and(
+          eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID),
+          eq(manusTasks.taskId, input.taskId),
+          inArray(manusTasks.status, ["pending", "running"]),
+        ),
+      )
       .returning({ id: manusTasks.id });
 
     return Boolean(rows[0]);
@@ -177,7 +211,13 @@ export class DrizzleCleanupStore implements CleanupStore {
         updatedAt: now,
         stoppedAt: now,
       })
-      .where(and(eq(manusTasks.taskId, taskId), inArray(manusTasks.status, ["pending", "running"])))
+      .where(
+        and(
+          eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID),
+          eq(manusTasks.taskId, taskId),
+          inArray(manusTasks.status, ["pending", "running"]),
+        ),
+      )
       .returning({ id: manusTasks.id });
 
     return Boolean(rows[0]);
@@ -191,6 +231,7 @@ export class DrizzleCleanupStore implements CleanupStore {
     expiresAt: Date;
   }): Promise<void> {
     await this.database.insert(messages).values({
+      workspaceId: DEFAULT_WORKSPACE_ID,
       sessionId: input.sessionId,
       direction: "outbound",
       channelMessageId: null,

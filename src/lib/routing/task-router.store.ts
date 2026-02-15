@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { manusTasks, messages } from "@/db/schema";
+import { DEFAULT_WORKSPACE_ID, manusTasks, messages } from "@/db/schema";
 
 import type { ActiveTaskForRouting, TaskRouterStore } from "./task-router";
 
@@ -29,7 +29,7 @@ export class DrizzleTaskRouterStore implements TaskRouterStore, ActiveTaskQueryS
         routeReason: input.reason,
         manusTaskId: input.taskId,
       })
-      .where(eq(messages.id, input.messageId))
+      .where(and(eq(messages.workspaceId, DEFAULT_WORKSPACE_ID), eq(messages.id, input.messageId)))
       .returning({ id: messages.id });
 
     if (!rows[0]) {
@@ -51,6 +51,7 @@ export class DrizzleTaskRouterStore implements TaskRouterStore, ActiveTaskQueryS
       .leftJoin(messages, eq(manusTasks.createdByMessageId, messages.id))
       .where(
         and(
+          eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID),
           eq(manusTasks.sessionId, sessionId),
           inArray(manusTasks.status, ["pending", "running", "waiting_user"]),
         ),
