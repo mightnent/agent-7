@@ -4,7 +4,7 @@
 
 Last updated: 2026-02-15
 Current release gate: **F12 Admin Console — Self-Service Setup & DB-Backed Config**
-Status: **F1-F9 complete; F11 Phase 1 OSS complete; F12 Phase 1-3 complete (admin console + DB config + channel management + tunnel)**
+Status: **F1-F9 complete; F11 Phase 1 OSS complete; F12 complete (admin console + DB config + channel management + tunnel + guide + status)**
 
 ### Release Log
 
@@ -20,7 +20,7 @@ Status: **F1-F9 complete; F11 Phase 1 OSS complete; F12 Phase 1-3 complete (admi
 | F8 | Decouple WhatsApp setup + chat targeting | 🔧 In Progress | Separate auth/setup CLIs, bot-config.json, message filtering with name/mention triggers. See `f8-whatsapp-setup-chat-targeting.md` |
 | F9 | Runtime stabilization + webhook delivery reliability | ✅ Done | Routing fallback on classifier/continue failures, webhook registration script + callback path hardening, global runtime adapter + bootstrap recovery, outbound chunking, provider-verified stale cleanup. See `f9-runtime-stabilization-webhook-delivery.md` |
 | F11 | OSS core + managed SaaS authn/authz (multi-user enterprise) | ✅ OSS Phase 1 Complete | Workspace-scoped schema shipped for OSS (`workspaces` + `workspace_id` across domain tables), default workspace seeding/backfill migration generated, and store-layer scoping wired. Managed authn/authz phases remain planned. See `f11-oss-managed-multi-tenant-auth.md` |
-| F12 | Admin console — self-service setup, channel management & DB-backed config | 🔧 In Progress | Phase 1-3 complete: DB settings UI, WhatsApp in-browser pairing/config, Cloudflare tunnel manager + webhook auto-registration, OSS admin route guard. Phase 4 (guide + status dashboard) pending. See `f12-admin-console-db-config.md` |
+| F12 | Admin console — self-service setup, channel management & DB-backed config | ✅ Done | All 4 phases complete: DB settings UI, WhatsApp in-browser pairing/config, Cloudflare tunnel manager + webhook auto-registration, setup guide wizard + status dashboard. See `f12-admin-console-db-config.md` |
 
 ### Work Items
 

@@ -449,8 +449,8 @@ src/app/
 | F12-13 | Implement tunnel process manager (spawn/kill/monitor) | 3 | Complete |
 | F12-14 | Build Tunnel page + API routes (start/stop/status) | 3 | Complete |
 | F12-15 | Auto-register Manus webhook on tunnel URL capture | 3 | Complete |
-| F12-16 | Build setup guide wizard page | 4 | Pending |
-| F12-17 | Build status/health dashboard page + API | 4 | Pending |
+| F12-16 | Build setup guide wizard page | 4 | Complete |
+| F12-17 | Build status/health dashboard page + API | 4 | Complete |
 
 ## Security Considerations
 
@@ -525,6 +525,24 @@ No forced migration. No breaking changes. Fully backwards compatible.
   - `Router > llm_provider` is single-select dropdown with user-friendly labels.
   - Connector settings simplified in UI to show only `enabled_uuids`.
   - `enabled_uuids` behavior now passes all enabled UUIDs to Manus; Manus decides which connector(s) to use.
+
+## Phase 4 Implementation Notes (Completed)
+
+- Added `/api/status/health` route aggregating system health across 5 subsystems:
+  - Manus API key, Manus webhook secret, WhatsApp connection, Cloudflare tunnel, webhook registration.
+  - Each check returns `ok | warning | error | unconfigured` status with human-readable detail.
+  - Overall status derived from individual checks; used by both Guide and Status pages.
+- Built Status dashboard page (`/status`):
+  - Live health monitoring with 5-second auto-refresh and manual refresh button.
+  - Per-check status with colored badges (emerald/amber/red/muted) and detail text.
+  - Overall system status summary with pass count.
+- Built Setup Guide wizard page (`/guide`):
+  - Three-step wizard: (1) Configure Manus API, (2) Pair WhatsApp, (3) Start Tunnel.
+  - Auto-detects completion state per step via health API polling (5-second interval).
+  - Progress bar showing overall completion percentage.
+  - Active step highlighted with primary border; completed steps show green styling.
+  - Each step links to its corresponding management page (Config, Channels, Tunnel).
+  - Completion card shown when all steps pass with link to Status dashboard.
 
 ### Baileys Auth State — DB Migration Design (Phase 2)
 
