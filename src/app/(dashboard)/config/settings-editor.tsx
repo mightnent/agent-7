@@ -150,7 +150,7 @@ export function ConfigEditor() {
   };
 
   if (hasAnyLoading) {
-    return <p className="text-sm text-slate-300">Loading settings...</p>;
+    return <p className="text-sm text-muted-foreground">Loading settings...</p>;
   }
 
   return (
@@ -174,7 +174,7 @@ export function ConfigEditor() {
               </Button>
             </CardHeader>
 
-            {section.error ? <p className="mb-3 text-sm text-rose-300">{section.error}</p> : null}
+            {section.error ? <p className="mb-3 text-sm text-destructive">{section.error}</p> : null}
 
             <CardContent>
               {section.settings.map((setting) => {
@@ -184,7 +184,7 @@ export function ConfigEditor() {
                 return (
                   <label key={setting.key} className="block">
                     <div className="mb-1 flex items-center justify-between">
-                      <span className="text-xs uppercase tracking-[0.12em] text-slate-400">
+                      <span className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
                         {prettifyKey(setting.key)}
                       </span>
                       {setting.sensitive ? (
@@ -220,8 +220,8 @@ export function ConfigEditor() {
       })}
       </div>
 
-      <details className="rounded-xl border border-slate-700 bg-slate-900 p-4">
-        <summary className="cursor-pointer text-sm font-medium text-slate-200">Advanced</summary>
+      <details className="rounded-xl border border-border bg-card p-4">
+        <summary className="cursor-pointer text-sm font-medium text-card-foreground">Advanced</summary>
         <div className="mt-4">
           <Card>
             <CardHeader>
@@ -246,7 +246,7 @@ export function ConfigEditor() {
               </Button>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-slate-300">
+              <p className="text-sm text-muted-foreground">
                 Use only when rotating <code>DB_ENCRYPTION_KEY</code> in <code>.env</code>.
               </p>
               {generatedDbKey ? (
@@ -262,11 +262,11 @@ export function ConfigEditor() {
                     >
                       Copy
                     </Button>
-                    <p className="text-xs text-slate-400">After updating .env, restart the server.</p>
+                    <p className="text-xs text-muted-foreground">After updating .env, restart the server.</p>
                   </div>
                 </div>
               ) : null}
-              {generatorError ? <p className="text-sm text-rose-300">{generatorError}</p> : null}
+              {generatorError ? <p className="text-sm text-destructive">{generatorError}</p> : null}
             </CardContent>
           </Card>
         </div>

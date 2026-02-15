@@ -1,37 +1,30 @@
-import Link from "next/link";
+import { DashboardSidebar } from "@/components/dashboard-sidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { DrizzleReadApiStore } from "@/lib/ops/read-api.store";
 
-const navItems = [
-  { href: "/guide", label: "Guide" },
-  { href: "/channels", label: "Channels" },
-  { href: "/config", label: "Config" },
-  { href: "/tunnel", label: "Tunnel" },
-  { href: "/status", label: "Status" },
-];
+export const dynamic = "force-dynamic";
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const store = new DrizzleReadApiStore();
+  const tasks = await store.listSidebarTasks(50);
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl gap-6 px-6 py-8">
-        <aside className="w-64 shrink-0 rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
-          <div className="mb-6">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Agent Console</p>
-            <h1 className="mt-2 text-xl font-semibold text-white">Workspace Settings</h1>
-          </div>
-          <nav className="space-y-2">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="block rounded-lg px-3 py-2 text-sm text-slate-200 transition hover:bg-slate-800 hover:text-white"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </aside>
-
-        <main className="min-w-0 flex-1 rounded-2xl border border-slate-800 bg-slate-900/60 p-6">{children}</main>
-      </div>
+    <div className="min-h-screen bg-background text-foreground">
+      <SidebarProvider>
+        <DashboardSidebar
+          tasks={tasks.map((task) => ({
+            ...task,
+            updatedAt: task.updatedAt.toISOString(),
+          }))}
+        />
+        <SidebarInset className="border-l border-border/70">
+          <header className="sticky top-0 z-30 flex h-14 items-center border-b border-border/70 bg-background/90 px-4 backdrop-blur">
+            <SidebarTrigger className="mr-2" />
+            <p className="text-sm font-medium text-muted-foreground">Manus Task Console</p>
+          </header>
+          <main className="min-w-0 flex-1 p-4 md:p-6">{children}</main>
+        </SidebarInset>
+      </SidebarProvider>
     </div>
   );
 }

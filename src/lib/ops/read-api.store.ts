@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { DEFAULT_WORKSPACE_ID, channelSessions, manusTasks, messages } from "@/db/schema";
@@ -39,6 +39,33 @@ export interface TaskView {
   updatedAt: Date;
   stoppedAt: Date | null;
   relatedMessages: Array<{
+    id: string;
+    direction: "inbound" | "outbound";
+    contentText: string | null;
+    createdAt: Date;
+  }>;
+}
+
+export interface SidebarTaskItem {
+  taskId: string;
+  status: "pending" | "running" | "completed" | "failed" | "waiting_user";
+  taskTitle: string | null;
+  lastMessage: string | null;
+  updatedAt: Date;
+}
+
+export interface TaskThreadView {
+  task: {
+    taskId: string;
+    sessionId: string;
+    status: "pending" | "running" | "completed" | "failed" | "waiting_user";
+    taskTitle: string | null;
+    taskUrl: string | null;
+    lastMessage: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  };
+  messages: Array<{
     id: string;
     direction: "inbound" | "outbound";
     contentText: string | null;
@@ -140,6 +167,76 @@ export class DrizzleReadApiStore {
     return {
       ...task,
       relatedMessages,
+    };
+  }
+
+  async listSidebarTasks(limit = 40): Promise<SidebarTaskItem[]> {
+    return this.database
+      .select({
+        taskId: manusTasks.taskId,
+        status: manusTasks.status,
+        taskTitle: manusTasks.taskTitle,
+        lastMessage: manusTasks.lastMessage,
+        updatedAt: manusTasks.updatedAt,
+      })
+      .from(manusTasks)
+      .where(eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID))
+      .orderBy(desc(manusTasks.updatedAt))
+      .limit(limit);
+  }
+
+  async getLatestTaskId(): Promise<string | null> {
+    const rows = await this.database
+      .select({ taskId: manusTasks.taskId })
+      .from(manusTasks)
+      .where(eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID))
+      .orderBy(desc(manusTasks.updatedAt))
+      .limit(1);
+
+    return rows[0]?.taskId ?? null;
+  }
+
+  async getTaskThread(taskId: string): Promise<TaskThreadView | null> {
+    const taskRows = await this.database
+      .select({
+        taskId: manusTasks.taskId,
+        sessionId: manusTasks.sessionId,
+        status: manusTasks.status,
+        taskTitle: manusTasks.taskTitle,
+        taskUrl: manusTasks.taskUrl,
+        lastMessage: manusTasks.lastMessage,
+        createdAt: manusTasks.createdAt,
+        updatedAt: manusTasks.updatedAt,
+      })
+      .from(manusTasks)
+      .where(and(eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID), eq(manusTasks.taskId, taskId)))
+      .limit(1);
+
+    const task = taskRows[0];
+    if (!task) {
+      return null;
+    }
+
+    const threadMessages = await this.database
+      .select({
+        id: messages.id,
+        direction: messages.direction,
+        contentText: messages.contentText,
+        createdAt: messages.createdAt,
+      })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.workspaceId, DEFAULT_WORKSPACE_ID),
+          eq(messages.manusTaskId, task.taskId),
+        ),
+      )
+      .orderBy(asc(messages.createdAt))
+      .limit(400);
+
+    return {
+      task,
+      messages: threadMessages,
     };
   }
 }
