@@ -7,7 +7,7 @@ import { decryptSetting, encryptSetting } from "@/lib/crypto/settings-cipher";
 import { proto } from "@whiskeysockets/baileys/WAProto/index.js";
 import { BufferJSON } from "@whiskeysockets/baileys/lib/Utils/generics.js";
 import { initAuthCreds } from "@whiskeysockets/baileys/lib/Utils/auth-utils.js";
-import type { AuthenticationState } from "@whiskeysockets/baileys/lib/Types/Auth.js";
+import type { AuthenticationState, SignalDataTypeMap } from "@whiskeysockets/baileys/lib/Types/Auth.js";
 
 interface DbAuthStateOptions {
   workspaceId?: string;
@@ -64,9 +64,12 @@ export const loadDbAuthState = async (
   const state: AuthenticationState = {
     creds,
     keys: {
-      get: async (type, ids) => {
+      get: async <T extends keyof SignalDataTypeMap>(
+        type: T,
+        ids: string[],
+      ): Promise<{ [id: string]: SignalDataTypeMap[T] }> => {
         if (ids.length === 0) {
-          return {};
+          return {} as { [id: string]: SignalDataTypeMap[T] };
         }
 
         const rows = await db
@@ -85,20 +88,22 @@ export const loadDbAuthState = async (
           );
 
         const rowMap = new Map(rows.map((row) => [row.keyId, row.encryptedValue]));
-        const data: Record<string, unknown> = {};
+        const data = {} as { [id: string]: SignalDataTypeMap[T] };
 
         for (const id of ids) {
           const rawValue = rowMap.get(id);
           if (!rawValue) {
-            data[id] = undefined;
             continue;
           }
 
-          const parsed = decryptAuthValue<unknown>(rawValue);
-          data[id] =
+          const parsed = decryptAuthValue<SignalDataTypeMap[T]>(rawValue);
+          const value =
             type === "app-state-sync-key"
-              ? proto.Message.AppStateSyncKeyData.fromObject(parsed as Record<string, unknown>)
+              ? (proto.Message.AppStateSyncKeyData.fromObject(
+                  parsed as unknown as Record<string, unknown>,
+                ) as unknown as SignalDataTypeMap[T])
               : parsed;
+          data[id] = value;
         }
 
         return data;

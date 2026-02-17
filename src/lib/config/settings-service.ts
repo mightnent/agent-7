@@ -92,12 +92,12 @@ const toPlaintext = (row: {
 class DrizzleSettingsService implements SettingsService {
   async get(workspaceId: string, category: string, key: string): Promise<string | null> {
     const definition = getSettingDefinition(category, key);
-    const envFallback = definition
-      ? process.env[definition.envVar] ?? (category === "internal" && key === "mock_token"
+    const envFallback: string | null = definition
+      ? (process.env[definition.envVar] ?? (category === "internal" && key === "mock_token"
           ? process.env.INTERNAL_CLEANUP_TOKEN
           : category === "connectors" && key === "enabled_uuids"
             ? process.env.MANUS_ENABLED_CONNECTOR_UIDS
-          : null)
+          : null)) ?? null
       : null;
 
     const [row] = await db

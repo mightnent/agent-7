@@ -1,4 +1,5 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn, type ChildProcessByStdio } from "node:child_process";
+import type { Readable } from "node:stream";
 
 import { settingsService } from "@/lib/config/settings-service";
 import { getEnv } from "@/lib/env";
@@ -24,7 +25,7 @@ export interface TunnelSnapshot {
 }
 
 interface TunnelRuntimeState {
-  process: ChildProcessWithoutNullStreams | null;
+  process: ChildProcessByStdio<null, Readable, Readable> | null;
   status: TunnelStatus;
   localPort: number;
   publicUrl: string | null;
@@ -214,7 +215,7 @@ const handleStopCleanup = (): void => {
 };
 
 const waitForProcessExit = async (
-  child: ChildProcessWithoutNullStreams,
+  child: ChildProcessByStdio<null, Readable, Readable>,
   timeoutMs: number,
 ): Promise<void> => {
   if (child.exitCode !== null) {

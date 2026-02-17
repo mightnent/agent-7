@@ -1,4 +1,4 @@
-export type SettingsCategory = "manus" | "router" | "connectors" | "internal" | "whatsapp";
+export type SettingsCategory = "manus" | "agent" | "router" | "connectors" | "internal" | "whatsapp";
 
 export interface SettingDefinition {
   category: SettingsCategory;
@@ -9,6 +9,7 @@ export interface SettingDefinition {
 
 export const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
   "manus",
+  "agent",
   "router",
   "connectors",
   "internal",
@@ -20,7 +21,16 @@ export const SETTING_DEFINITIONS: readonly SettingDefinition[] = [
   { category: "manus", key: "base_url", envVar: "MANUS_BASE_URL", sensitive: false },
   { category: "manus", key: "webhook_secret", envVar: "MANUS_WEBHOOK_SECRET", sensitive: true },
   { category: "manus", key: "webhook_url", envVar: "MANUS_WEBHOOK_URL", sensitive: false },
+  { category: "manus", key: "webhook_id", envVar: "MANUS_WEBHOOK_ID", sensitive: false },
   { category: "manus", key: "agent_profile", envVar: "MANUS_AGENT_PROFILE", sensitive: false },
+  { category: "manus", key: "project_id", envVar: "MANUS_PROJECT_ID", sensitive: false },
+  {
+    category: "manus",
+    key: "project_instructions",
+    envVar: "MANUS_PROJECT_INSTRUCTIONS",
+    sensitive: false,
+  },
+  { category: "agent", key: "personality", envVar: "AGENT_PERSONALITY", sensitive: false },
   { category: "router", key: "llm_provider", envVar: "ROUTER_LLM_PROVIDER", sensitive: false },
   { category: "router", key: "llm_api_key", envVar: "ROUTER_LLM_API_KEY", sensitive: true },
   { category: "router", key: "llm_model", envVar: "ROUTER_LLM_MODEL", sensitive: false },

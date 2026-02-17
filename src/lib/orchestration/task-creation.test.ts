@@ -2,17 +2,25 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { WhatsAppAdapter } from "@/lib/channel/whatsapp-adapter";
 import type { ManusClient } from "@/lib/manus/client";
+import type { PersonalityMessageRenderer } from "@/lib/orchestration/personality";
 
-import { createTaskFromInboundMessage, taskCreationConstants } from "./task-creation";
+import {
+  createTaskFromInboundMessage,
+  taskCreationConstants,
+  type ManusProjectSettingsStore,
+} from "./task-creation";
 import type { TaskCreationStore } from "./task-creation.store";
 
 const createMocks = (): {
   manusClient: ManusClient;
   store: TaskCreationStore;
   whatsappAdapter: WhatsAppAdapter;
+  projectSettingsStore: ManusProjectSettingsStore;
+  personalityRenderer: PersonalityMessageRenderer;
 } => {
   const manusClient = {
     createTask: vi.fn(),
+    createProject: vi.fn(),
   } as unknown as ManusClient;
 
   const store = {
@@ -27,7 +35,24 @@ const createMocks = (): {
     setTyping: vi.fn(),
   } as unknown as WhatsAppAdapter;
 
-  return { manusClient, store, whatsappAdapter };
+  const projectSettingsStore = {
+    getProjectId: vi.fn().mockResolvedValue("project-1"),
+    getProjectInstructions: vi.fn().mockResolvedValue(""),
+    setProjectId: vi.fn(),
+  };
+
+  const personalityRenderer = {
+    buildTaskAcknowledgement: vi.fn().mockResolvedValue(null),
+    frameTaskResult: vi.fn().mockResolvedValue(null),
+  };
+
+  return {
+    manusClient,
+    store,
+    whatsappAdapter,
+    projectSettingsStore,
+    personalityRenderer,
+  };
 };
 
 describe("createTaskFromInboundMessage", () => {
@@ -60,7 +85,11 @@ describe("createTaskFromInboundMessage", () => {
         senderId: "assistant",
         now: () => now,
       },
-      deps,
+      {
+        ...deps,
+        projectSettingsStore: deps.projectSettingsStore,
+        personalityRenderer: deps.personalityRenderer,
+      },
     );
 
     expect(vi.mocked(deps.manusClient.createTask)).toHaveBeenCalledWith(
@@ -75,6 +104,7 @@ describe("createTaskFromInboundMessage", () => {
             fileData: "data:image/png;base64,YWJj",
           },
         ],
+        projectId: "project-1",
       }),
     );
 
@@ -129,7 +159,11 @@ describe("createTaskFromInboundMessage", () => {
         ],
         senderId: "assistant",
       },
-      deps,
+      {
+        ...deps,
+        projectSettingsStore: deps.projectSettingsStore,
+        personalityRenderer: deps.personalityRenderer,
+      },
     );
 
     expect(vi.mocked(deps.manusClient.createTask)).toHaveBeenCalledWith(
@@ -157,7 +191,11 @@ describe("createTaskFromInboundMessage", () => {
         senderId: "assistant",
         connectors: ["clickup-uid"],
       },
-      deps,
+      {
+        ...deps,
+        projectSettingsStore: deps.projectSettingsStore,
+        personalityRenderer: deps.personalityRenderer,
+      },
     );
 
     expect(vi.mocked(deps.manusClient.createTask)).toHaveBeenCalledWith(
@@ -186,10 +224,91 @@ describe("createTaskFromInboundMessage", () => {
         attachments: [],
         senderId: "assistant",
       },
-      deps,
+      {
+        ...deps,
+        projectSettingsStore: deps.projectSettingsStore,
+        personalityRenderer: deps.personalityRenderer,
+      },
     );
 
     expect(result.taskTitle).toBe("Need help drafting an email about project status");
     expect(result.ackText).toBe('Got it - working on "Need help drafting an email about project status" now.');
+  });
+
+  it("creates project on first task when project_id is missing", async () => {
+    const deps = createMocks();
+    vi.mocked(deps.projectSettingsStore.getProjectId).mockResolvedValue(null);
+    vi.mocked(deps.projectSettingsStore.getProjectInstructions).mockResolvedValue("## User context");
+    vi.mocked(deps.manusClient.createProject).mockResolvedValue({
+      project_id: "project-new",
+      name: "Agent-7",
+    });
+    vi.mocked(deps.manusClient.createTask).mockResolvedValue({
+      task_id: "task-new",
+      task_title: "New task",
+      task_url: "https://manus.im/app/task-new",
+    });
+    vi.mocked(deps.store.createOutboundMessage).mockResolvedValue("outbound-new");
+
+    await createTaskFromInboundMessage(
+      {
+        sessionId: "session-new",
+        inboundMessageId: "inbound-new",
+        chatId: "15551234567@s.whatsapp.net",
+        text: "Do this",
+        attachments: [],
+        senderId: "assistant",
+      },
+      {
+        ...deps,
+        projectSettingsStore: deps.projectSettingsStore,
+        personalityRenderer: deps.personalityRenderer,
+      },
+    );
+
+    expect(vi.mocked(deps.manusClient.createProject)).toHaveBeenCalledWith({
+      name: "Agent-7",
+      instruction: "## User context",
+    });
+    expect(vi.mocked(deps.projectSettingsStore.setProjectId)).toHaveBeenCalledWith("project-new");
+    expect(vi.mocked(deps.manusClient.createTask)).toHaveBeenCalledWith(
+      "Do this",
+      expect.objectContaining({
+        projectId: "project-new",
+      }),
+    );
+  });
+
+  it("uses personality acknowledgement when available", async () => {
+    const deps = createMocks();
+    vi.mocked(deps.manusClient.createTask).mockResolvedValue({
+      task_id: "task-personality",
+      task_title: "Personalized",
+      task_url: "https://manus.im/app/task-personality",
+    });
+    vi.mocked(deps.personalityRenderer.buildTaskAcknowledgement).mockResolvedValue("On it. I'll update you shortly.");
+    vi.mocked(deps.store.createOutboundMessage).mockResolvedValue("outbound-personality");
+
+    const result = await createTaskFromInboundMessage(
+      {
+        sessionId: "session-personality",
+        inboundMessageId: "inbound-personality",
+        chatId: "15551234567@s.whatsapp.net",
+        text: "Please handle this",
+        attachments: [],
+        senderId: "assistant",
+      },
+      {
+        ...deps,
+        projectSettingsStore: deps.projectSettingsStore,
+        personalityRenderer: deps.personalityRenderer,
+      },
+    );
+
+    expect(result.ackText).toBe("On it. I'll update you shortly.");
+    expect(vi.mocked(deps.whatsappAdapter.sendTextMessage)).toHaveBeenCalledWith(
+      "15551234567@s.whatsapp.net",
+      "On it. I'll update you shortly.",
+    );
   });
 });

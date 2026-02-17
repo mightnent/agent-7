@@ -10,7 +10,10 @@ const envSchema = z.object({
   MANUS_BASE_URL: z.string().url().default("https://api.manus.ai"),
   MANUS_WEBHOOK_URL: z.string().url().optional(),
   MANUS_WEBHOOK_SECRET: z.string().default(""),
+  MANUS_WEBHOOK_ID: z.string().default(""),
   MANUS_AGENT_PROFILE: z.enum(["manus-1.6", "manus-1.6-lite", "manus-1.6-max"]).default("manus-1.6"),
+  MANUS_PROJECT_ID: z.string().default(""),
+  MANUS_PROJECT_INSTRUCTIONS: z.string().default(""),
   MANUS_CONNECTOR_CATALOG_URL: z
     .string()
     .url()
@@ -24,6 +27,7 @@ const envSchema = z.object({
   ROUTER_LLM_API_KEY: z.string().optional(),
   ROUTER_LLM_MODEL: z.string().default("gpt-4.1-mini"),
   ROUTER_LLM_BASE_URL: z.string().url().default("https://api.openai.com"),
+  AGENT_PERSONALITY: z.string().default(""),
   WHATSAPP_AUTH_DIR: z.string().default("./.data/whatsapp-auth"),
   WHATSAPP_SESSION_NAME: z.string().default("default"),
   MOCK_TOKEN: z.string().default(""),
@@ -83,7 +87,7 @@ const readWorkspaceSettingsEnvMap = async (
   }
 
   const { settingsService } = await import("./config/settings-service");
-  const categories = ["manus", "router", "connectors", "internal", "whatsapp"] as const;
+  const categories = ["manus", "agent", "router", "connectors", "internal", "whatsapp"] as const;
   const entries = await Promise.all(
     categories.map(async (category) => {
       const values = await settingsService.getCategory(workspaceId, category);

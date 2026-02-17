@@ -1,7 +1,10 @@
 import type { WhatsAppAdapter } from "@/lib/channel/whatsapp-adapter";
 import type { WhatsAppMediaAttachment } from "@/lib/channel/whatsapp-types";
+import { DEFAULT_WORKSPACE_ID } from "@/db/schema";
+import { settingsService } from "@/lib/config/settings-service";
 import type { ManusClient } from "@/lib/manus/client";
 import { toManusBase64Attachments } from "@/lib/manus/client";
+import type { PersonalityMessageRenderer } from "@/lib/orchestration/personality";
 
 import type { TaskCreationStore } from "./task-creation.store";
 
@@ -67,17 +70,62 @@ const buildAckText = (taskTitle: string): string => {
   return `Got it - working on "${taskTitle}" now.`;
 };
 
+export interface ManusProjectSettingsStore {
+  getProjectId(): Promise<string | null>;
+  getProjectInstructions(): Promise<string | null>;
+  setProjectId(projectId: string): Promise<void>;
+}
+
+export const createDefaultManusProjectSettingsStore = (
+  workspaceId = DEFAULT_WORKSPACE_ID,
+): ManusProjectSettingsStore => {
+  return {
+    getProjectId: async () => settingsService.get(workspaceId, "manus", "project_id"),
+    getProjectInstructions: async () => settingsService.get(workspaceId, "manus", "project_instructions"),
+    setProjectId: async (projectId: string) => {
+      await settingsService.set(workspaceId, "manus", "project_id", projectId);
+    },
+  };
+};
+
+export const ensureManusProjectId = async (
+  manusClient: ManusClient,
+  projectSettingsStore: ManusProjectSettingsStore | undefined,
+): Promise<string | undefined> => {
+  if (!projectSettingsStore) {
+    return undefined;
+  }
+
+  const existingProjectId = (await projectSettingsStore.getProjectId())?.trim();
+  if (existingProjectId) {
+    return existingProjectId;
+  }
+
+  const projectInstructions = (await projectSettingsStore.getProjectInstructions())?.trim() ?? "";
+  const created = await manusClient.createProject({
+    name: "Agent-7",
+    instruction: projectInstructions,
+  });
+  const projectId = created.project_id.trim();
+
+  await projectSettingsStore.setProjectId(projectId);
+  return projectId;
+};
+
 export const createTaskFromInboundMessage = async (
   input: CreateTaskFromInboundInput,
   deps: {
     manusClient: ManusClient;
     store: TaskCreationStore;
     whatsappAdapter: WhatsAppAdapter;
+    projectSettingsStore?: ManusProjectSettingsStore;
+    personalityRenderer?: PersonalityMessageRenderer;
   },
 ): Promise<CreateTaskFromInboundResult> => {
   const now = input.now ?? (() => new Date());
   const createdAt = now();
   const prompt = resolvePrompt(input.text, input.attachments);
+  const projectId = await ensureManusProjectId(deps.manusClient, deps.projectSettingsStore);
 
   const task = await deps.manusClient.createTask(prompt, {
     attachments: toManusBase64Attachments(input.attachments),
@@ -86,6 +134,7 @@ export const createTaskFromInboundMessage = async (
     hideInTaskList: true,
     agentProfile: input.agentProfile,
     connectors: input.connectors,
+    projectId,
   });
 
   const taskTitle = task.task_title?.trim() || titleFromPrompt(prompt);
@@ -107,7 +156,7 @@ export const createTaskFromInboundMessage = async (
     routeReason: input.routeReason ?? DEFAULT_ROUTE_REASON,
   });
 
-  const ackText = buildAckText(taskTitle);
+  const ackText = await deps.personalityRenderer?.buildTaskAcknowledgement({ taskTitle }) ?? buildAckText(taskTitle);
   await deps.whatsappAdapter.sendTextMessage(input.chatId, ackText);
 
   const ackMessageId = await deps.store.createOutboundMessage({

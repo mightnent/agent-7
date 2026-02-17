@@ -143,4 +143,71 @@ describe("ManusClient", () => {
       expect.objectContaining({ method: "GET" }),
     );
   });
+
+  it("creates project and returns project_id", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          project_id: "proj-1",
+          name: "Agent-7",
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new ManusClient({ ...config, fetchImpl });
+    const response = await client.createProject({
+      name: "Agent-7",
+      instruction: "## Context",
+    });
+
+    expect(response.project_id).toBe("proj-1");
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://api.manus.ai/v1/projects",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+  });
+
+  it("updates project instructions", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const client = new ManusClient({ ...config, fetchImpl });
+
+    await client.updateProject("proj-1", {
+      instruction: "New instructions",
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://api.manus.ai/v1/projects/proj-1",
+      expect.objectContaining({
+        method: "PATCH",
+      }),
+    );
+  });
+
+  it("registers webhook and returns webhook id", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            webhook_id: "wh-3",
+            webhook: {
+              url: "https://new.example.com/api/manus/webhook?secret=abc",
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+
+    const client = new ManusClient({ ...config, fetchImpl });
+    const webhookId = await client.registerWebhook("https://new.example.com/api/manus/webhook?secret=abc");
+
+    expect(webhookId).toBe("wh-3");
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://api.manus.ai/v1/webhooks",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
 });

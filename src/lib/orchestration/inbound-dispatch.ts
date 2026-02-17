@@ -6,9 +6,10 @@ import type { ManusClient } from "@/lib/manus/client";
 import { toManusBase64Attachments } from "@/lib/manus/client";
 import type { ActiveTaskQueryStore } from "@/lib/routing/task-router.store";
 import type { TaskRouter } from "@/lib/routing/task-router";
+import type { PersonalityMessageRenderer } from "@/lib/orchestration/personality";
 
 import type { TaskCreationStore } from "./task-creation.store";
-import { createTaskFromInboundMessage } from "./task-creation";
+import { createTaskFromInboundMessage, ensureManusProjectId, type ManusProjectSettingsStore } from "./task-creation";
 
 const DEFAULT_ROUTER_MESSAGE_FOR_MEDIA = "[User sent media attachment]";
 const DEFAULT_ROUTER_MESSAGE_FOR_EMPTY = "[User sent an empty message]";
@@ -79,6 +80,8 @@ export interface InboundDispatchDeps {
   taskStateStore: TaskStateStore;
   whatsappAdapter: WhatsAppAdapter;
   taskCreationStore: TaskCreationStore;
+  projectSettingsStore?: ManusProjectSettingsStore;
+  personalityRenderer?: PersonalityMessageRenderer;
 }
 
 export const dispatchInboundMessage = async (
@@ -102,6 +105,7 @@ export const dispatchInboundMessage = async (
 
   if (decision.action === "continue") {
     const prompt = resolvePrompt(input.text, input.attachments);
+    const projectId = await ensureManusProjectId(deps.manusClient, deps.projectSettingsStore);
     try {
       await deps.manusClient.continueTask(decision.taskId, prompt, {
         taskMode: "adaptive",
@@ -110,6 +114,7 @@ export const dispatchInboundMessage = async (
         agentProfile: input.agentProfile,
         attachments: toManusBase64Attachments(input.attachments),
         connectors,
+        projectId,
       });
     } catch (error) {
       const isMissingTask =
@@ -143,6 +148,8 @@ export const dispatchInboundMessage = async (
           manusClient: deps.manusClient,
           whatsappAdapter: deps.whatsappAdapter,
           store: deps.taskCreationStore,
+          projectSettingsStore: deps.projectSettingsStore,
+          personalityRenderer: deps.personalityRenderer,
         },
       );
 
@@ -186,6 +193,8 @@ export const dispatchInboundMessage = async (
       manusClient: deps.manusClient,
       whatsappAdapter: deps.whatsappAdapter,
       store: deps.taskCreationStore,
+      projectSettingsStore: deps.projectSettingsStore,
+      personalityRenderer: deps.personalityRenderer,
     },
   );
 

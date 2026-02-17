@@ -28,7 +28,9 @@ import { getEnv } from "@/lib/env";
 import { createConnectorResolverFromEnv } from "@/lib/connectors/runtime";
 import { createManusClientFromEnv } from "@/lib/manus/client";
 import { dispatchInboundMessage } from "@/lib/orchestration/inbound-dispatch";
+import { createPersonalityMessageRendererFromEnv } from "@/lib/orchestration/personality";
 import { DrizzleEventProcessorStore } from "@/lib/orchestration/event-processor.store";
+import { createDefaultManusProjectSettingsStore } from "@/lib/orchestration/task-creation";
 import { DrizzleTaskCreationStore } from "@/lib/orchestration/task-creation.store";
 import { DrizzleTaskRouterStore } from "@/lib/routing/task-router.store";
 import { createTaskRouterFromEnv } from "@/lib/routing/task-router-runtime";
@@ -174,9 +176,11 @@ export async function bootBaileys(): Promise<void> {
   // --- Orchestration deps (created once, reused across messages) ---
   const manusClient = await createManusClientFromEnv();
   const taskCreationStore = new DrizzleTaskCreationStore();
+  const projectSettingsStore = createDefaultManusProjectSettingsStore(DEFAULT_WORKSPACE_ID);
   const eventProcessorStore = new DrizzleEventProcessorStore();
   const taskRouterStore = new DrizzleTaskRouterStore();
   const router = await createTaskRouterFromEnv({ store: taskRouterStore });
+  const personalityRenderer = await createPersonalityMessageRendererFromEnv(DEFAULT_WORKSPACE_ID);
   const connectorResolver = await createConnectorResolverFromEnv();
 
   // --- Connect ---
@@ -343,6 +347,8 @@ export async function bootBaileys(): Promise<void> {
               taskStateStore: eventProcessorStore,
               whatsappAdapter: adapter,
               taskCreationStore,
+              projectSettingsStore,
+              personalityRenderer,
             },
           );
 

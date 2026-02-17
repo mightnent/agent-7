@@ -41,6 +41,21 @@ export interface ManusCreateTaskResponse {
   share_url?: string;
 }
 
+export interface ManusCreateProjectRequest {
+  name: string;
+  instruction?: string;
+}
+
+export interface ManusCreateProjectResponse {
+  project_id: string;
+  name?: string;
+  instruction?: string;
+}
+
+export interface ManusUpdateProjectRequest {
+  instruction?: string;
+}
+
 export interface ManusTaskOutputContent {
   type: "output_text" | "output_file";
   text?: string;
@@ -177,6 +192,79 @@ export class ManusClient {
     });
   }
 
+  async createProject(input: ManusCreateProjectRequest): Promise<ManusCreateProjectResponse> {
+    const response = await this.requestJson<Record<string, unknown>>("/v1/projects", {
+      method: "POST",
+      body: JSON.stringify({
+        name: input.name,
+        instruction: input.instruction ?? "",
+      }),
+    });
+
+    const projectIdCandidate = response.project_id ?? response.id;
+    const projectId = typeof projectIdCandidate === "string" ? projectIdCandidate.trim() : "";
+    if (!projectId) {
+      throw new ManusApiError("Manus create project response did not include project id");
+    }
+
+    return {
+      project_id: projectId,
+      name: typeof response.name === "string" ? response.name : undefined,
+      instruction: typeof response.instruction === "string" ? response.instruction : undefined,
+    };
+  }
+
+  async updateProject(projectId: string, input: ManusUpdateProjectRequest): Promise<void> {
+    const path = `/v1/projects/${encodeURIComponent(projectId)}`;
+    const body = JSON.stringify({
+      instruction: input.instruction ?? "",
+    });
+
+    try {
+      await this.requestJson<Record<string, unknown>>(path, {
+        method: "PATCH",
+        body,
+      });
+      return;
+    } catch (error) {
+      const isMethodOrNotFound =
+        error instanceof ManusApiError && (error.status === 404 || error.status === 405);
+      if (!isMethodOrNotFound) {
+        throw error;
+      }
+    }
+
+    await this.requestJson<Record<string, unknown>>(path, {
+      method: "PUT",
+      body,
+    });
+  }
+
+  async registerWebhook(callbackUrl: string): Promise<string | null> {
+    const response = await this.requestJson<Record<string, unknown>>("/v1/webhooks", {
+      method: "POST",
+      body: JSON.stringify({
+        webhook: {
+          url: callbackUrl,
+        },
+      }),
+    });
+
+    const webhookId = response.webhook_id ?? response.id;
+    if (typeof webhookId !== "string") {
+      return null;
+    }
+
+    const trimmed = webhookId.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  async deleteWebhook(webhookId: string): Promise<void> {
+    await this.requestJson<Record<string, unknown>>(`/v1/webhooks/${encodeURIComponent(webhookId)}`, {
+      method: "DELETE",
+    });
+  }
+
   private async requestJson<T>(path: string, init: RequestInit): Promise<T> {
     const url = new URL(path, this.config.baseUrl).toString();
     let lastError: Error | null = null;
@@ -210,7 +298,12 @@ export class ManusClient {
           continue;
         }
 
-        return (await response.json()) as T;
+        const text = await response.text();
+        if (!text.trim()) {
+          return {} as T;
+        }
+
+        return JSON.parse(text) as T;
       } catch (error) {
         const typedError = error instanceof Error ? error : new Error("Unknown Manus request error");
         lastError = typedError;

@@ -3,6 +3,7 @@ import { after, NextResponse } from "next/server";
 import { getRuntimeWhatsAppAdapter } from "@/lib/channel/runtime-adapter";
 import { getEnv } from "@/lib/env";
 import { createEventProcessor, parseManusWebhookPayload } from "@/lib/orchestration/event-processor";
+import { createPersonalityMessageRendererFromEnv } from "@/lib/orchestration/personality";
 
 const WEBHOOK_EVENT_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
@@ -79,9 +80,11 @@ export const processManusWebhook = async (
 
   const { DrizzleEventProcessorStore } = await import("@/lib/orchestration/event-processor.store");
   const store = new DrizzleEventProcessorStore();
+  const personalityRenderer = await createPersonalityMessageRendererFromEnv();
   const eventProcessor = createEventProcessor({
     store,
     whatsappAdapter: adapter,
+    personalityRenderer,
     sendProgressUpdates: false,
   });
 

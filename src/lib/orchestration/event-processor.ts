@@ -1,4 +1,5 @@
 import type { WhatsAppAdapter } from "@/lib/channel/whatsapp-adapter";
+import type { PersonalityMessageRenderer } from "@/lib/orchestration/personality";
 
 import type { EventProcessorStore } from "./event-processor.store";
 
@@ -197,6 +198,7 @@ export const parseManusWebhookPayload = (payload: unknown): ParsedManusWebhookEv
 export interface EventProcessorDeps {
   store: EventProcessorStore;
   whatsappAdapter: WhatsAppAdapter;
+  personalityRenderer?: PersonalityMessageRenderer;
   downloadAttachment?: (url: string) => Promise<DownloadedAttachment>;
   sendProgressUpdates?: boolean;
   now?: () => Date;
@@ -310,12 +312,15 @@ export const createEventProcessor = (deps: EventProcessorDeps): EventProcessor =
       }
 
       if (detail.message) {
-        await deps.whatsappAdapter.sendTextMessage(context.chatId, detail.message);
+        const formatted =
+          (await deps.personalityRenderer?.frameTaskResult({ resultText: detail.message })) ?? detail.message;
+
+        await deps.whatsappAdapter.sendTextMessage(context.chatId, formatted);
         await deps.store.createOutboundMessage({
           sessionId: context.sessionId,
           manusTaskId: event.taskId,
           senderId: "assistant",
-          contentText: detail.message,
+          contentText: formatted,
           contentJson: {
             provider: "whatsapp",
             type: "task_finish",

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { WhatsAppAdapter } from "@/lib/channel/whatsapp-adapter";
+import type { PersonalityMessageRenderer } from "@/lib/orchestration/personality";
 
 import { createEventProcessor, parseManusWebhookPayload } from "./event-processor";
 import type { EventProcessorStore } from "./event-processor.store";
@@ -20,6 +21,11 @@ const createAdapterMock = (): WhatsAppAdapter => ({
   sendTextMessage: vi.fn(),
   sendMediaMessage: vi.fn(),
   setTyping: vi.fn(),
+});
+
+const createPersonalityMock = (): PersonalityMessageRenderer => ({
+  buildTaskAcknowledgement: vi.fn(),
+  frameTaskResult: vi.fn().mockResolvedValue(null),
 });
 
 describe("parseManusWebhookPayload", () => {
@@ -122,6 +128,7 @@ describe("createEventProcessor", () => {
   it("handles task_stopped finish with attachment forwarding", async () => {
     const store = createStoreMock();
     const adapter = createAdapterMock();
+    const personality = createPersonalityMock();
     vi.mocked(store.getTaskDeliveryContext).mockResolvedValue({
       sessionId: "session-2",
       chatId: "1555@s.whatsapp.net",
@@ -131,6 +138,7 @@ describe("createEventProcessor", () => {
     const processor = createEventProcessor({
       store,
       whatsappAdapter: adapter,
+      personalityRenderer: personality,
       downloadAttachment: vi.fn().mockResolvedValue({
         buffer: Buffer.from("pdf"),
         contentType: "application/pdf",
@@ -171,6 +179,46 @@ describe("createEventProcessor", () => {
       }),
     );
     expect(vi.mocked(store.createAttachmentRecords)).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses personality framing for task_stopped finish message when available", async () => {
+    const store = createStoreMock();
+    const adapter = createAdapterMock();
+    const personality = createPersonalityMock();
+    vi.mocked(personality.frameTaskResult).mockResolvedValue("Framed: done");
+    vi.mocked(store.getTaskDeliveryContext).mockResolvedValue({
+      sessionId: "session-framed",
+      chatId: "1555@s.whatsapp.net",
+    });
+    vi.mocked(store.createOutboundMessage).mockResolvedValue("out-framed");
+
+    const processor = createEventProcessor({
+      store,
+      whatsappAdapter: adapter,
+      personalityRenderer: personality,
+    });
+
+    await processor.process({
+      eventId: "evt-framed",
+      eventType: "task_stopped",
+      taskId: "task-framed",
+      progressType: null,
+      stopReason: "finish",
+      payload: {
+        event_id: "evt-framed",
+        event_type: "task_stopped",
+      },
+      taskDetail: {
+        task_id: "task-framed",
+        message: "Done",
+        stop_reason: "finish",
+      },
+    });
+
+    expect(vi.mocked(adapter.sendTextMessage)).toHaveBeenCalledWith("1555@s.whatsapp.net", "Framed: done");
+    expect(vi.mocked(store.createOutboundMessage)).toHaveBeenCalledWith(
+      expect.objectContaining({ contentText: "Framed: done" }),
+    );
   });
 
   it("ignores out-of-order progress events when task is already stopped", async () => {
