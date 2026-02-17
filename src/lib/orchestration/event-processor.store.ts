@@ -42,6 +42,10 @@ export interface AttachmentRecordInput {
 
 export interface EventProcessorStore {
   getTaskDeliveryContext(taskId: string): Promise<TaskDeliveryContext | null>;
+  getTaskMemoryExtractionContext(taskId: string): Promise<{
+    userRequest: string | null;
+    sourceMessageId: string | null;
+  } | null>;
   getTaskStatus(taskId: string): Promise<"pending" | "running" | "completed" | "failed" | "waiting_user" | null>;
   updateTaskFromCreated(input: { taskId: string; taskTitle: string | null; taskUrl: string | null; updatedAt: Date }): Promise<void>;
   updateTaskFromProgress(input: { taskId: string; message: string | null; updatedAt: Date }): Promise<void>;
@@ -126,6 +130,23 @@ export class DrizzleEventProcessorStore implements EventProcessorStore, WebhookE
       })
       .from(manusTasks)
       .innerJoin(channelSessions, eq(channelSessions.id, manusTasks.sessionId))
+      .where(and(eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID), eq(manusTasks.taskId, taskId)))
+      .limit(1);
+
+    return rows[0] ?? null;
+  }
+
+  async getTaskMemoryExtractionContext(taskId: string): Promise<{
+    userRequest: string | null;
+    sourceMessageId: string | null;
+  } | null> {
+    const rows = await this.database
+      .select({
+        userRequest: messages.contentText,
+        sourceMessageId: messages.id,
+      })
+      .from(manusTasks)
+      .leftJoin(messages, eq(messages.id, manusTasks.createdByMessageId))
       .where(and(eq(manusTasks.workspaceId, DEFAULT_WORKSPACE_ID), eq(manusTasks.taskId, taskId)))
       .limit(1);
 

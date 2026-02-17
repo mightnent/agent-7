@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireOssApiAccess } from "@/lib/api/oss-admin-guard";
 import { createNoopWhatsAppAdapter, getRuntimeWhatsAppAdapter } from "@/lib/channel/runtime-adapter";
 import { createManusClientFromEnv } from "@/lib/manus/client";
+import { DrizzleAgentMemoryStore } from "@/lib/memory/store";
 import { runCleanup } from "@/lib/ops/cleanup";
 
 export const runtime = "nodejs";
@@ -22,6 +23,7 @@ export async function POST(request: Request): Promise<Response> {
     store: new DrizzleCleanupStore(),
     whatsappAdapter: adapter,
     manusClient,
+    memoryStore: new DrizzleAgentMemoryStore(),
   });
 
   return NextResponse.json({

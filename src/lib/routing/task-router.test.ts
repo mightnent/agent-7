@@ -41,26 +41,32 @@ const createDeps = (): { classifier: TaskRouterClassifier; store: TaskRouterStor
 };
 
 describe("TaskRouter", () => {
-  it("returns new when there are no active tasks without calling classifier", async () => {
+  it("classifies messages even when there are no active tasks", async () => {
     const { classifier, store } = createDeps();
+    vi.mocked(classifier.classify).mockResolvedValue({
+      action: "respond",
+      responseIntent: "chitchat",
+      reason: "greeting",
+    });
     const router = new TaskRouter(classifier, store);
 
     const result = await router.route({
       messageId: "message-1",
-      message: "new request",
+      message: "hello",
       activeTasks: [],
     });
 
     expect(result).toEqual({
-      action: "new",
-      reason: taskRouterConstants.NO_ACTIVE_TASKS_REASON,
+      action: "respond",
+      responseIntent: "chitchat",
+      reason: "greeting",
     });
 
-    expect(vi.mocked(classifier.classify)).not.toHaveBeenCalled();
+    expect(vi.mocked(classifier.classify)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(store.persistRouteDecision)).toHaveBeenCalledWith({
       messageId: "message-1",
-      action: "new",
-      reason: taskRouterConstants.NO_ACTIVE_TASKS_REASON,
+      action: "respond",
+      reason: "greeting",
       taskId: null,
     });
   });
@@ -201,6 +207,24 @@ describe("JsonLlmTaskRouterClassifier", () => {
     expect(result).toEqual({
       action: "new",
       reason: "new request",
+    });
+  });
+
+  it("parses respond action with response intent", async () => {
+    const llmClient = {
+      complete: vi.fn().mockResolvedValue('{"action":"respond","response_intent":"memory_query","reason":"known profile"}'),
+    };
+
+    const classifier = new JsonLlmTaskRouterClassifier(llmClient);
+    const result = await classifier.classify({
+      message: "what's my timezone?",
+      activeTasks,
+    });
+
+    expect(result).toEqual({
+      action: "respond",
+      responseIntent: "memory_query",
+      reason: "known profile",
     });
   });
 

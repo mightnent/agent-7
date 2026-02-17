@@ -8,6 +8,7 @@ import type { EventProcessorStore } from "./event-processor.store";
 
 const createStoreMock = (): EventProcessorStore => ({
   getTaskDeliveryContext: vi.fn(),
+  getTaskMemoryExtractionContext: vi.fn(),
   getTaskStatus: vi.fn(),
   updateTaskFromCreated: vi.fn(),
   updateTaskFromProgress: vi.fn(),

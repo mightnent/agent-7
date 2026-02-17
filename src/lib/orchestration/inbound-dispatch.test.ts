@@ -5,6 +5,7 @@ import type { WhatsAppMediaAttachment } from "@/lib/channel/whatsapp-types";
 import type { ConnectorResolver } from "@/lib/connectors/resolver";
 import { ManusApiError } from "@/lib/manus/client";
 import type { ManusClient } from "@/lib/manus/client";
+import type { AgentMemoryStore } from "@/lib/memory/store";
 import { TaskRouter } from "@/lib/routing/task-router";
 import type { ActiveTaskQueryStore } from "@/lib/routing/task-router.store";
 
@@ -59,6 +60,18 @@ const createBaseDeps = () => {
     taskCreationStore,
   };
 };
+
+const createMemoryStoreMock = (): AgentMemoryStore => ({
+  insertMemory: vi.fn().mockResolvedValue("memory-1"),
+  supersedeMemories: vi.fn(),
+  listActive: vi.fn().mockResolvedValue([]),
+  touchMemories: vi.fn(),
+  listAdmin: vi.fn().mockResolvedValue({ total: 0, items: [] }),
+  deleteMemory: vi.fn().mockResolvedValue(false),
+  clearAll: vi.fn().mockResolvedValue(0),
+  getStats: vi.fn().mockResolvedValue({ total: 0, lastExtractionAt: null }),
+  cleanup: vi.fn().mockResolvedValue({ expiredDeleted: 0, supersededDeleted: 0 }),
+});
 
 const sampleAttachment: WhatsAppMediaAttachment = {
   kind: "image",
@@ -207,6 +220,43 @@ describe("dispatchInboundMessage", () => {
       reason: inboundDispatchConstants.CONTINUE_TASK_NOT_FOUND_FALLBACK_REASON,
       ackMessageId: "outbound-2",
       ackText: 'Got it - working on "Recovered Task" now.',
+    });
+  });
+
+  it("handles explicit memory writes locally without creating a task", async () => {
+    const deps = createBaseDeps();
+    const memoryStore = createMemoryStoreMock();
+    vi.mocked(deps.activeTaskStore.listActiveTasks).mockResolvedValue([]);
+    vi.mocked(deps.taskCreationStore.createOutboundMessage).mockResolvedValue("outbound-memory");
+
+    const result = await dispatchInboundMessage(
+      {
+        sessionId: "session-memory",
+        inboundMessageId: "message-memory",
+        chatId: "1555@s.whatsapp.net",
+        senderId: "assistant",
+        text: "Remember that my timezone is SGT (UTC+8)",
+        attachments: [],
+      },
+      {
+        ...deps,
+        memoryStore,
+      },
+    );
+
+    expect(vi.mocked(memoryStore.insertMemory)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(deps.manusClient.createTask)).not.toHaveBeenCalled();
+    expect(vi.mocked(deps.whatsappAdapter.sendTextMessage)).toHaveBeenCalledWith(
+      "1555@s.whatsapp.net",
+      "Noted — I saved that to memory.",
+    );
+    expect(result).toEqual({
+      action: "respond",
+      taskId: "",
+      reason: inboundDispatchConstants.EXPLICIT_MEMORY_LOCAL_REASON,
+      responseIntent: "memory_write",
+      responseText: "Noted — I saved that to memory.",
+      outboundMessageId: "outbound-memory",
     });
   });
 });

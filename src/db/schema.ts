@@ -7,6 +7,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  real,
   text,
   timestamp,
   uniqueIndex,
@@ -16,7 +17,7 @@ import {
 export const channelEnum = pgEnum("channel", ["whatsapp"]);
 export const sessionStatusEnum = pgEnum("session_status", ["active", "closed", "expired"]);
 export const messageDirectionEnum = pgEnum("message_direction", ["inbound", "outbound"]);
-export const routeActionEnum = pgEnum("route_action", ["continue", "new"]);
+export const routeActionEnum = pgEnum("route_action", ["continue", "new", "respond"]);
 export const taskStatusEnum = pgEnum("task_status", ["pending", "running", "completed", "failed", "waiting_user"]);
 export const stopReasonEnum = pgEnum("stop_reason", ["finish", "ask"]);
 export const webhookEventTypeEnum = pgEnum("webhook_event_type", ["task_created", "task_progress", "task_stopped"]);
@@ -255,5 +256,33 @@ export const whatsappAuthKeys = pgTable(
       t.keyId,
     ),
     index("whatsapp_auth_keys_workspace_session_idx").on(t.workspaceId, t.sessionName),
+  ],
+);
+
+export const agentMemories = pgTable(
+  "agent_memories",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .default(sql.raw(`'${DEFAULT_WORKSPACE_ID}'::uuid`))
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    category: text("category").notNull(),
+    content: text("content").notNull(),
+    sourceType: text("source_type").notNull(),
+    sourceTaskId: text("source_task_id"),
+    sourceMessageId: uuid("source_message_id").references(() => messages.id, { onDelete: "set null" }),
+    supersededBy: uuid("superseded_by"),
+    confidence: real("confidence").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastAccessedAt: timestamp("last_accessed_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("agent_memories_workspace_category_idx").on(t.workspaceId, t.category),
+    index("agent_memories_workspace_created_at_idx").on(t.workspaceId, t.createdAt),
+    index("agent_memories_workspace_accessed_at_idx").on(t.workspaceId, t.lastAccessedAt),
+    index("agent_memories_superseded_idx").on(t.supersededBy),
+    index("agent_memories_expires_at_idx").on(t.expiresAt),
   ],
 );

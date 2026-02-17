@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Activity, Bot, Cable, FileText, Settings2, Waypoints } from "lucide-react";
+import { Activity, Bot, Brain, Cable, FileText, Settings2, Waypoints } from "lucide-react";
 
 import {
   Sidebar,
@@ -30,6 +30,7 @@ const navItems = [
   { href: "/guide", label: "Guide", icon: FileText },
   { href: "/channels", label: "Channels", icon: Cable },
   { href: "/config", label: "Config", icon: Settings2 },
+  { href: "/memories", label: "Memories", icon: Brain },
   { href: "/tunnel", label: "Tunnel", icon: Waypoints },
   { href: "/status", label: "Status", icon: Activity },
 ];

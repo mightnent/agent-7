@@ -2,6 +2,8 @@ import type { WhatsAppAdapter } from "@/lib/channel/whatsapp-adapter";
 import type { WhatsAppMediaAttachment } from "@/lib/channel/whatsapp-types";
 import { DEFAULT_WORKSPACE_ID } from "@/db/schema";
 import { settingsService } from "@/lib/config/settings-service";
+import { getMemoriesForTaskPrompt } from "@/lib/memory/retrieval";
+import type { AgentMemoryStore } from "@/lib/memory/store";
 import type { ManusClient } from "@/lib/manus/client";
 import { toManusBase64Attachments } from "@/lib/manus/client";
 import type { PersonalityMessageRenderer } from "@/lib/orchestration/personality";
@@ -120,14 +122,23 @@ export const createTaskFromInboundMessage = async (
     whatsappAdapter: WhatsAppAdapter;
     projectSettingsStore?: ManusProjectSettingsStore;
     personalityRenderer?: PersonalityMessageRenderer;
+    memoryStore?: AgentMemoryStore;
   },
 ): Promise<CreateTaskFromInboundResult> => {
   const now = input.now ?? (() => new Date());
   const createdAt = now();
   const prompt = resolvePrompt(input.text, input.attachments);
+  let promptWithContext = prompt;
+
+  if (deps.memoryStore) {
+    const memoryContext = await getMemoriesForTaskPrompt(deps.memoryStore, createdAt);
+    if (memoryContext.contextBlock) {
+      promptWithContext = `${memoryContext.contextBlock}\n\nUser request: ${prompt}`;
+    }
+  }
   const projectId = await ensureManusProjectId(deps.manusClient, deps.projectSettingsStore);
 
-  const task = await deps.manusClient.createTask(prompt, {
+  const task = await deps.manusClient.createTask(promptWithContext, {
     attachments: toManusBase64Attachments(input.attachments),
     taskMode: "adaptive",
     interactiveMode: true,

@@ -1,5 +1,8 @@
 import type { WhatsAppAdapter } from "@/lib/channel/whatsapp-adapter";
+import { extractAndStoreTaskMemories } from "@/lib/memory/extraction";
+import type { AgentMemoryStore } from "@/lib/memory/store";
 import type { PersonalityMessageRenderer } from "@/lib/orchestration/personality";
+import type { LlmCompletionClient } from "@/lib/routing/task-router";
 
 import type { EventProcessorStore } from "./event-processor.store";
 
@@ -199,6 +202,8 @@ export interface EventProcessorDeps {
   store: EventProcessorStore;
   whatsappAdapter: WhatsAppAdapter;
   personalityRenderer?: PersonalityMessageRenderer;
+  memoryStore?: AgentMemoryStore;
+  memoryExtractionLlmClient?: LlmCompletionClient | null;
   downloadAttachment?: (url: string) => Promise<DownloadedAttachment>;
   sendProgressUpdates?: boolean;
   now?: () => Date;
@@ -332,44 +337,60 @@ export const createEventProcessor = (deps: EventProcessorDeps): EventProcessor =
       }
 
       const attachments = detail.attachments ?? [];
-      if (attachments.length === 0) {
-        return;
+      if (attachments.length > 0) {
+        const attachmentRecords: Array<{
+          taskId: string;
+          eventId: string;
+          fileName: string;
+          url: string;
+          sizeBytes: bigint;
+          mimeType: string | null;
+          createdAt: Date;
+          expiresAt: Date;
+        }> = [];
+
+        for (const attachment of attachments) {
+          const downloaded = await downloadAttachment(attachment.url);
+          const mimeType = downloaded.contentType ?? mimeFromExtension(attachment.file_name);
+
+          await deps.whatsappAdapter.sendMediaMessage(context.chatId, {
+            buffer: downloaded.buffer,
+            mimetype: mimeType,
+            fileName: attachment.file_name,
+          });
+
+          attachmentRecords.push({
+            taskId: event.taskId,
+            eventId: event.eventId,
+            fileName: attachment.file_name,
+            url: attachment.url,
+            sizeBytes: BigInt(attachment.size_bytes),
+            mimeType,
+            createdAt: eventTime,
+            expiresAt: new Date(eventTime.getTime() + ATTACHMENT_TTL_MS),
+          });
+        }
+
+        await deps.store.createAttachmentRecords(attachmentRecords);
       }
 
-      const attachmentRecords: Array<{
-        taskId: string;
-        eventId: string;
-        fileName: string;
-        url: string;
-        sizeBytes: bigint;
-        mimeType: string | null;
-        createdAt: Date;
-        expiresAt: Date;
-      }> = [];
-
-      for (const attachment of attachments) {
-        const downloaded = await downloadAttachment(attachment.url);
-        const mimeType = downloaded.contentType ?? mimeFromExtension(attachment.file_name);
-
-        await deps.whatsappAdapter.sendMediaMessage(context.chatId, {
-          buffer: downloaded.buffer,
-          mimetype: mimeType,
-          fileName: attachment.file_name,
-        });
-
-        attachmentRecords.push({
-          taskId: event.taskId,
-          eventId: event.eventId,
-          fileName: attachment.file_name,
-          url: attachment.url,
-          sizeBytes: BigInt(attachment.size_bytes),
-          mimeType,
-          createdAt: eventTime,
-          expiresAt: new Date(eventTime.getTime() + ATTACHMENT_TTL_MS),
-        });
+      if (deps.memoryStore && deps.memoryExtractionLlmClient && detail.stop_reason === "finish" && detail.message) {
+        const extractionContext = await deps.store.getTaskMemoryExtractionContext(event.taskId);
+        await extractAndStoreTaskMemories(
+          {
+            llmClient: deps.memoryExtractionLlmClient,
+            memoryStore: deps.memoryStore,
+          },
+          {
+            sourceTaskId: event.taskId,
+            userRequest: extractionContext?.userRequest ?? "",
+            sourceMessageId: extractionContext?.sourceMessageId ?? null,
+            taskTitle: detail.task_title ?? null,
+            taskResult: detail.message,
+            now: eventTime,
+          },
+        );
       }
-
-      await deps.store.createAttachmentRecords(attachmentRecords);
     },
   };
 };

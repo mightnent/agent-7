@@ -12,7 +12,10 @@ export interface ActiveTaskForRouting {
 export interface TaskRouterClassifierInput {
   message: string;
   activeTasks: ActiveTaskForRouting[];
+  memorySummary?: string;
 }
+
+export type ResponseIntent = "memory_query" | "memory_write" | "chitchat" | "task_query" | "unclear";
 
 export type TaskRouterDecision =
   | {
@@ -23,6 +26,11 @@ export type TaskRouterDecision =
   | {
       action: "new";
       reason: string;
+    }
+  | {
+      action: "respond";
+      reason: string;
+      responseIntent: ResponseIntent;
     };
 
 export interface TaskRouterClassifier {
@@ -50,7 +58,7 @@ const validateClassifierDecision = (
   decision: TaskRouterDecision,
   activeTasks: ActiveTaskForRouting[],
 ): TaskRouterDecision => {
-  if (decision.action === "new") {
+  if (decision.action !== "continue") {
     return decision;
   }
 
@@ -65,6 +73,34 @@ const validateClassifierDecision = (
   };
 };
 
+const isDecisionShape = (value: unknown): value is TaskRouterDecision => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const decision = value as Partial<TaskRouterDecision>;
+  if (decision.action === "new") {
+    return typeof decision.reason === "string";
+  }
+
+  if (decision.action === "continue") {
+    return typeof decision.reason === "string" && typeof decision.taskId === "string";
+  }
+
+  if (decision.action === "respond") {
+    return (
+      typeof decision.reason === "string" &&
+      (decision.responseIntent === "memory_query" ||
+        decision.responseIntent === "memory_write" ||
+        decision.responseIntent === "chitchat" ||
+        decision.responseIntent === "task_query" ||
+        decision.responseIntent === "unclear")
+    );
+  }
+
+  return false;
+};
+
 export class TaskRouter {
   constructor(
     private readonly classifier: TaskRouterClassifier,
@@ -72,15 +108,6 @@ export class TaskRouter {
   ) {}
 
   async route(input: TaskRouterInput): Promise<TaskRouterDecision> {
-    if (input.activeTasks.length === 0) {
-      const decision: TaskRouterDecision = {
-        action: "new",
-        reason: NO_ACTIVE_TASKS_REASON,
-      };
-      await this.persistIfNeeded(input.messageId, decision);
-      return decision;
-    }
-
     if (
       input.activeTasks.length === 1 &&
       input.activeTasks[0]?.status === "waiting_user" &&
@@ -95,12 +122,14 @@ export class TaskRouter {
       return decision;
     }
 
-    let classified: TaskRouterDecision;
+    let classified: TaskRouterDecision | null = null;
     try {
-      classified = await this.classifier.classify({
+      const raw = await this.classifier.classify({
         message: input.message,
         activeTasks: input.activeTasks,
+        memorySummary: input.memorySummary,
       });
+      classified = isDecisionShape(raw) ? raw : null;
     } catch {
       const decision: TaskRouterDecision = {
         action: "new",
@@ -110,7 +139,13 @@ export class TaskRouter {
       return decision;
     }
 
-    const decision = validateClassifierDecision(classified, input.activeTasks);
+    const decision = validateClassifierDecision(
+      classified ?? {
+        action: "new",
+        reason: input.activeTasks.length === 0 ? NO_ACTIVE_TASKS_REASON : "classifier_invalid_fallback_new",
+      },
+      input.activeTasks,
+    );
     await this.persistIfNeeded(input.messageId, decision);
     return decision;
   }
@@ -134,10 +169,16 @@ export interface LlmCompletionClient {
 }
 
 const classifierSystemPrompt = [
-  "You are a message router.",
-  "Given currently active tasks and a new user message, decide if the message should continue an existing task or start a new one.",
+  "You are a message router for a WhatsApp AI assistant.",
+  "Given currently active tasks, memory summary, and a new user message, decide continue/new/respond.",
   "Respond with JSON only.",
-  'Valid JSON schema: { "action": "continue", "task_id": "<id>", "reason": "..." } OR { "action": "new", "reason": "..." }',
+  "Valid JSON schemas:",
+  '{ "action": "continue", "task_id": "<id>", "reason": "..." }',
+  '{ "action": "new", "reason": "..." }',
+  '{ "action": "respond", "reason": "...", "response_intent": "memory_query|memory_write|chitchat|task_query|unclear" }',
+  "Use respond for memory questions, memory writes, chitchat, task-history questions, or unclear prompts needing clarification.",
+  "Use new for substantive tasks requiring tooling/research/build work.",
+  "When in doubt between respond and new, choose new.",
 ].join(" ");
 
 const parseDecisionFromJson = (text: string): TaskRouterDecision | null => {
@@ -163,6 +204,22 @@ const parseDecisionFromJson = (text: string): TaskRouterDecision | null => {
             reason,
           };
         }
+      }
+
+      if (action === "respond") {
+        const responseIntent = value.response_intent ?? value.responseIntent;
+        const validIntent =
+          responseIntent === "memory_query" ||
+          responseIntent === "memory_write" ||
+          responseIntent === "chitchat" ||
+          responseIntent === "task_query" ||
+          responseIntent === "unclear";
+
+        return {
+          action: "respond",
+          reason,
+          responseIntent: validIntent ? responseIntent : "unclear",
+        };
       }
 
       return null;
@@ -199,6 +256,7 @@ const buildClassifierPrompt = (input: TaskRouterClassifierInput): string => {
   return JSON.stringify(
     {
       message: input.message,
+      memory_summary: input.memorySummary ?? "",
       active_tasks: tasks,
     },
     null,

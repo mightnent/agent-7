@@ -27,7 +27,9 @@ import { DEFAULT_WORKSPACE_ID } from "@/db/schema";
 import { getEnv } from "@/lib/env";
 import { createConnectorResolverFromEnv } from "@/lib/connectors/runtime";
 import { createManusClientFromEnv } from "@/lib/manus/client";
+import { DrizzleAgentMemoryStore } from "@/lib/memory/store";
 import { dispatchInboundMessage } from "@/lib/orchestration/inbound-dispatch";
+import { createLocalResponderFromEnv } from "@/lib/orchestration/local-responder";
 import { createPersonalityMessageRendererFromEnv } from "@/lib/orchestration/personality";
 import { DrizzleEventProcessorStore } from "@/lib/orchestration/event-processor.store";
 import { createDefaultManusProjectSettingsStore } from "@/lib/orchestration/task-creation";
@@ -182,6 +184,8 @@ export async function bootBaileys(): Promise<void> {
   const router = await createTaskRouterFromEnv({ store: taskRouterStore });
   const personalityRenderer = await createPersonalityMessageRendererFromEnv(DEFAULT_WORKSPACE_ID);
   const connectorResolver = await createConnectorResolverFromEnv();
+  const memoryStore = new DrizzleAgentMemoryStore();
+  const localResponder = await createLocalResponderFromEnv(DEFAULT_WORKSPACE_ID);
 
   // --- Connect ---
   const connect = (): void => {
@@ -349,6 +353,8 @@ export async function bootBaileys(): Promise<void> {
               taskCreationStore,
               projectSettingsStore,
               personalityRenderer,
+              memoryStore,
+              localResponder,
             },
           );
 

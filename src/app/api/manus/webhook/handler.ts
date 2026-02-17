@@ -2,6 +2,8 @@ import { after, NextResponse } from "next/server";
 
 import { getRuntimeWhatsAppAdapter } from "@/lib/channel/runtime-adapter";
 import { getEnv } from "@/lib/env";
+import { createMemoryLlmClientFromEnv } from "@/lib/memory/runtime";
+import { DrizzleAgentMemoryStore } from "@/lib/memory/store";
 import { createEventProcessor, parseManusWebhookPayload } from "@/lib/orchestration/event-processor";
 import { createPersonalityMessageRendererFromEnv } from "@/lib/orchestration/personality";
 
@@ -80,11 +82,15 @@ export const processManusWebhook = async (
 
   const { DrizzleEventProcessorStore } = await import("@/lib/orchestration/event-processor.store");
   const store = new DrizzleEventProcessorStore();
+  const memoryStore = new DrizzleAgentMemoryStore();
+  const memoryExtractionLlmClient = await createMemoryLlmClientFromEnv();
   const personalityRenderer = await createPersonalityMessageRendererFromEnv();
   const eventProcessor = createEventProcessor({
     store,
     whatsappAdapter: adapter,
     personalityRenderer,
+    memoryStore,
+    memoryExtractionLlmClient,
     sendProgressUpdates: false,
   });
 

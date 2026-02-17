@@ -2,6 +2,7 @@ import { getTableName } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import {
+  agentMemories,
   channelEnum,
   channelSessions,
   manusAttachments,
@@ -29,11 +30,12 @@ describe("db schema", () => {
     expect(getTableName(workspaceSettings)).toBe("workspace_settings");
     expect(getTableName(workspaceChannels)).toBe("workspace_channels");
     expect(getTableName(whatsappAuthKeys)).toBe("whatsapp_auth_keys");
+    expect(getTableName(agentMemories)).toBe("agent_memories");
   });
 
   it("defines expected enum values", () => {
     expect(channelEnum.enumValues).toEqual(["whatsapp"]);
-    expect(routeActionEnum.enumValues).toEqual(["continue", "new"]);
+    expect(routeActionEnum.enumValues).toEqual(["continue", "new", "respond"]);
     expect(stopReasonEnum.enumValues).toEqual(["finish", "ask"]);
     expect(taskStatusEnum.enumValues).toEqual([
       "pending",

@@ -18,7 +18,7 @@ export class DrizzleTaskRouterStore implements TaskRouterStore, ActiveTaskQueryS
 
   async persistRouteDecision(input: {
     messageId: string;
-    action: "continue" | "new";
+    action: "continue" | "new" | "respond";
     reason: string;
     taskId: string | null;
   }): Promise<void> {

@@ -1,5 +1,7 @@
 import type { WhatsAppAdapter } from "@/lib/channel/whatsapp-adapter";
 import { ManusApiError, type ManusClient } from "@/lib/manus/client";
+import { runMemoryMaintenance } from "@/lib/memory/maintenance";
+import type { AgentMemoryStore } from "@/lib/memory/store";
 
 import type { CleanupStore, ExpirableTable } from "./cleanup.store";
 
@@ -29,6 +31,10 @@ export interface RunCleanupOptions {
 export interface CleanupSummary {
   expiredDeletes: Record<ExpirableTable, number>;
   staleTasksMarkedFailed: number;
+  memoryCleanup: {
+    expiredDeleted: number;
+    supersededDeleted: number;
+  };
 }
 
 const staleTaskNotice = (taskId: string): string => {
@@ -40,6 +46,7 @@ export const runCleanup = async (
     store: CleanupStore;
     whatsappAdapter: WhatsAppAdapter;
     manusClient: ManusClient;
+    memoryStore?: AgentMemoryStore;
   },
   options: RunCleanupOptions = {},
 ): Promise<CleanupSummary> => {
@@ -141,8 +148,13 @@ export const runCleanup = async (
     }
   }
 
+  const memoryCleanup = deps.memoryStore
+    ? await runMemoryMaintenance(deps.memoryStore, cleanupNow)
+    : { expiredDeleted: 0, supersededDeleted: 0 };
+
   return {
     expiredDeletes,
     staleTasksMarkedFailed,
+    memoryCleanup,
   };
 };
