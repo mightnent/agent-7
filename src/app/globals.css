@@ -51,11 +51,6 @@ body {
   box-sizing: border-box;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
 .dark {
   --background: oklch(0.16 0 0);
   --foreground: oklch(0.95 0 0);
@@ -126,6 +121,10 @@ a {
   }
   body {
     @apply bg-background text-foreground;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
   }
 }
 

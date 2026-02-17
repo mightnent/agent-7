@@ -204,7 +204,7 @@ export default function GuidePage() {
 
                 {!isComplete ? (
                   <div className="mt-3">
-                    <Button asChild size="sm" variant={isActive ? "default" : "outline"}>
+                    <Button asChild size="sm" variant="default">
                       <Link href={step.href}>
                         {step.linkLabel}
                         <ArrowRight className="ml-1.5 size-3.5" />
